@@ -40,6 +40,13 @@ const params: Param[] = [
             "Elenco di allegati: ogni elemento accetta filename, content (contenuto codificato in base64) e mime.",
     },
     {
+        name: 'uuid',
+        type: 'string',
+        required: false,
+        description:
+            "Identificativo UUID dell'email, utile per correlarla a un record del tuo software. Se assente ne viene generato uno automaticamente. Con più destinatari lo stesso uuid viene assegnato a tutte le email create dalla richiesta.",
+    },
+    {
         name: 'sync',
         type: 'boolean',
         required: false,
@@ -50,6 +57,7 @@ const params: Param[] = [
 
 const requestExample = `{
   "to": ["mario@example.com", "lucia@example.com"],
+  "uuid": "9f1c2b7e-5d3a-4a8b-9f2e-6c1d7a4b3e50",
   "subject": "Conferma ordine #1234",
   "body": "<p>Grazie per il tuo ordine.</p>",
   "attachments": [
@@ -98,6 +106,11 @@ const errors = [
         code: '400',
         body: '{"error": "Invalid email address", "email": "..."}',
         when: 'Uno dei destinatari non è un indirizzo email valido.',
+    },
+    {
+        code: '400',
+        body: '{"error": "Invalid uuid", "uuid": "..."}',
+        when: "Il campo uuid è presente ma non è un UUID valido.",
     },
     {
         code: '401',

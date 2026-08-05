@@ -8,6 +8,7 @@ use App\Models\Email;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -51,14 +52,23 @@ class SendController extends Controller
             }
         }
 
+        $uuid = $data['uuid'] ?? null;
+
+        if ($uuid !== null && ! (is_string($uuid) && Str::isUuid($uuid))) {
+            return response()->json([
+                'error' => 'Invalid uuid',
+                'uuid' => is_scalar($uuid) ? (string) $uuid : '',
+            ], 400);
+        }
+
         $subject = (string) $data['subject'];
         $body = (string) $data['body'];
         $attachments = is_array($data['attachments'] ?? null) ? array_values($data['attachments']) : [];
         $sync = filter_var($data['sync'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $sync
-            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer)
-            : $this->queue($recipients, $subject, $body, $attachments);
+            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer, $uuid)
+            : $this->queue($recipients, $subject, $body, $attachments, $uuid);
     }
 
     /**
@@ -67,13 +77,14 @@ class SendController extends Controller
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
      */
-    protected function queue(array $recipients, string $subject, string $body, array $attachments): JsonResponse
+    protected function queue(array $recipients, string $subject, string $body, array $attachments, ?string $uuid = null): JsonResponse
     {
         try {
             $ids = [];
 
             foreach ($recipients as $recipient) {
                 $email = Email::create([
+                    'uuid' => $uuid,
                     'recipient' => $recipient,
                     'subject' => $subject,
                     'body' => $body,
@@ -101,7 +112,7 @@ class SendController extends Controller
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
      */
-    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer): JsonResponse
+    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer, ?string $uuid = null): JsonResponse
     {
         $sent = [];
         $failed = [];
@@ -109,6 +120,7 @@ class SendController extends Controller
         try {
             foreach ($recipients as $recipient) {
                 $email = Email::create([
+                    'uuid' => $uuid,
                     'recipient' => $recipient,
                     'subject' => $subject,
                     'body' => $body,

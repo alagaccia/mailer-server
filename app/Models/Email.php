@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
+ * @property string $uuid
  * @property string $recipient
  * @property string $subject
  * @property string $body
@@ -21,7 +23,7 @@ use Illuminate\Support\Number;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['recipient', 'subject', 'body', 'attachments', 'status', 'attempts', 'last_error', 'sent_at'])]
+#[Fillable(['uuid', 'recipient', 'subject', 'body', 'attachments', 'status', 'attempts', 'last_error', 'sent_at'])]
 class Email extends Model
 {
     public const STATUS_PENDING = 'pending';
@@ -31,6 +33,18 @@ class Email extends Model
     public const STATUS_SENT = 'sent';
 
     public const STATUS_FAILED = 'failed';
+
+    /**
+     * Ogni email ha un uuid: se non viene fornito ne viene generato uno.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $email) {
+            if (empty($email->uuid)) {
+                $email->uuid = (string) Str::uuid();
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
