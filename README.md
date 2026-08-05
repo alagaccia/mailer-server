@@ -50,7 +50,19 @@ npm run build
 rsync -avz --delete public/build/ utente@server:/percorso/mailer-server/public/build/
 ```
 
-Ripeti questi due comandi a ogni deploy che tocca frontend/asset. Il resto del codice (PHP, migrazioni, ecc.) continua a essere aggiornato come al solito (es. `git pull`).
+`rsync` trasporta i dati via SSH, quindi usa automaticamente le chiavi già installate (nessuna password richiesta). `--delete` rimuove sul server i file che non esistono più nella build locale — utile perché Vite genera nomi con hash diversi ad ogni build e altrimenti si accumulerebbero versioni vecchie.
+
+In alternativa, con lo stesso accesso SSH puoi usare `scp`, che copia l'intera cartella in un colpo solo:
+
+```bash
+npm run build
+ssh utente@server 'rm -rf /percorso/mailer-server/public/build'
+scp -r public/build utente@server:/percorso/mailer-server/public/
+```
+
+`scp` non fa sync incrementale: va bene per deploy occasionali, ma trasferisce sempre tutti i file (anche quelli invariati) ed è per questo che conviene cancellare prima la cartella remota, altrimenti si accumulano gli asset con hash vecchi. `rsync` resta la scelta più efficiente per deploy frequenti.
+
+Ripeti questi comandi a ogni deploy che tocca frontend/asset. Il resto del codice (PHP, migrazioni, ecc.) continua a essere aggiornato come al solito (es. `git pull`).
 
 ### Cron (obbligatorio)
 
