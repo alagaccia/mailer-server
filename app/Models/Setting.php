@@ -22,7 +22,7 @@ class Setting extends Model
      *
      * @var list<string>
      */
-    public const SECRET_KEYS = ['smtp_password'];
+    public const SECRET_KEYS = ['smtp_password', 'webhook_token'];
 
     protected $primaryKey = 'key';
 

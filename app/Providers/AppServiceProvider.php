@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Contracts\BridgeMailer;
+use App\Contracts\WebhookNotifier;
 use App\Services\MailerService;
+use App\Services\WebhookService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(BridgeMailer::class, MailerService::class);
+        $this->app->singleton(WebhookNotifier::class, WebhookService::class);
     }
 
     /**

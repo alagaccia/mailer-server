@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\BridgeMailer;
+use App\Contracts\WebhookNotifier;
 use App\Models\Email;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +29,7 @@ class EmailController extends Controller
             'body' => $email->body,
             'status' => $email->status,
             'attachments' => $email->attachments ?? [],
+            'webhook' => $email->webhook,
             'last_error' => $email->last_error,
             'created_at' => $email->created_at?->format('d/m/Y H:i'),
         ]);
@@ -36,7 +38,7 @@ class EmailController extends Controller
     /**
      * Invio manuale (o re-invio) dalla dashboard.
      */
-    public function send(int $id, BridgeMailer $mailer): JsonResponse
+    public function send(int $id, BridgeMailer $mailer, WebhookNotifier $webhook): JsonResponse
     {
         $email = Email::find($id);
 
@@ -64,6 +66,8 @@ class EmailController extends Controller
                 'last_error' => null,
             ]);
 
+            $webhook->notify($email);
+
             return response()->json([
                 'message' => 'Email sent successfully',
                 'id' => $email->id,
@@ -76,6 +80,8 @@ class EmailController extends Controller
             'last_error' => $result,
             'attempts' => $email->attempts + 1,
         ]);
+
+        $webhook->notify($email);
 
         return response()->json([
             'error' => 'Failed to send email',

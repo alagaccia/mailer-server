@@ -29,6 +29,7 @@ class AdminAreaTest extends TestCase
         $this->actingAs($this->member)->get('/users')->assertForbidden();
         $this->actingAs($this->member)->get('/settings/smtp')->assertForbidden();
         $this->actingAs($this->member)->get('/settings/api-keys')->assertForbidden();
+        $this->actingAs($this->member)->get('/settings/webhook')->assertForbidden();
     }
 
     public function test_admin_can_list_users(): void
@@ -132,6 +133,81 @@ class AdminAreaTest extends TestCase
 
         $this->assertSame('smtp.example.com', Setting::get('smtp_host'));
         $this->assertSame('segretissima', Setting::get('smtp_password'));
+    }
+
+    public function test_admin_can_save_the_default_webhook(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/settings/webhook')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('settings/Webhook')
+                ->where('webhook.url', ''),
+            );
+
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', ['url' => 'https://tuo-software.it/hooks/mail-bridge'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('https://tuo-software.it/hooks/mail-bridge', Setting::get('webhook_url'));
+    }
+
+    public function test_default_webhook_must_be_a_valid_url(): void
+    {
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', ['url' => 'non-un-url'])
+            ->assertSessionHasErrors('url');
+
+        $this->assertNull(Setting::get('webhook_url'));
+    }
+
+    public function test_empty_url_disables_the_default_webhook(): void
+    {
+        Setting::set('webhook_url', 'https://tuo-software.it/hooks/mail-bridge');
+
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', ['url' => ''])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull(Setting::get('webhook_url'));
+    }
+
+    public function test_admin_can_save_the_hmac_signature_settings(): void
+    {
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', [
+                'url' => 'https://tuo-software.it/hooks/mail-bridge',
+                'secret' => 'chiave-hmac',
+                'signature_header' => ' X-Hub-Signature-256 ',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('chiave-hmac', Setting::get('webhook_secret'));
+        $this->assertSame('X-Hub-Signature-256', Setting::get('webhook_signature_header'));
+    }
+
+    public function test_the_signature_header_must_be_a_valid_header_name(): void
+    {
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', ['url' => '', 'signature_header' => 'non valido: '])
+            ->assertSessionHasErrors('signature_header');
+
+        $this->assertNull(Setting::get('webhook_signature_header'));
+    }
+
+    public function test_empty_secret_disables_the_signature(): void
+    {
+        Setting::set('webhook_secret', 'chiave-hmac');
+
+        $this->actingAs($this->admin)
+            ->put('/settings/webhook', ['url' => '', 'secret' => ''])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull(Setting::get('webhook_secret'));
     }
 
     public function test_admin_can_list_api_keys(): void

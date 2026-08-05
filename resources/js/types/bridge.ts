@@ -26,6 +26,7 @@ export type EmailDetail = {
     body: string;
     status: string;
     attachments: EmailAttachment[];
+    webhook: string | null;
     last_error: string | null;
     created_at: string | null;
 };

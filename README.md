@@ -168,8 +168,10 @@ curl -X POST https://esempio.it/api/send \
 | `to` | string \| string[] | obbligatorio; una riga in coda per destinatario |
 | `subject` | string | obbligatorio |
 | `body` | string | obbligatorio, HTML |
+| `uuid` | string | facoltativo; UUID dell'email, generato se assente |
 | `sync` | bool | `true` = invio immediato nella richiesta; default `false` (coda, invio entro un minuto) |
 | `attachments` | array | facoltativo; contenuto base64 |
+| `webhook` | string | facoltativo; URL http/https notificato a elaborazione avvenuta, al posto di quello di default |
 
 Risposte principali (contratto identico alla vecchia app):
 
@@ -178,13 +180,37 @@ Risposte principali (contratto identico alla vecchia app):
 - `500` `{"message":"All emails failed","failed":[...]}` (sync, tutti falliti)
 - `401` `{"error":"Unauthorized"}` — chiave mancante o errata
 - `403` `{"error":"Mailer disabilitato dalle impostazioni"}` — kill switch attivo
-- `400` `{"error":"Missing fields","field":"..."}` / `{"error":"Invalid email address","email":"..."}` / `{"error":"Malformed JSON",...}`
+- `400` `{"error":"Missing fields","field":"..."}` / `{"error":"Invalid email address","email":"..."}` / `{"error":"Invalid uuid","uuid":"..."}` / `{"error":"Invalid webhook","webhook":"..."}` / `{"error":"Malformed JSON",...}`
 - `405` `{"error":"Method Not Allowed. Use POST."}`
+
+## Webhook
+
+Ogni volta che un'email viene **elaborata** (inviata dal cron, inviata subito con `sync: true`, o re-inviata a mano dalla dashboard) il server esegue una `POST` JSON verso un webhook per comunicare l'esito:
+
+```json
+{
+  "event": "email.processed",
+  "uuid": "9f1c2b7e-5d3a-4a8b-9f2e-6c1d7a4b3e50",
+  "recipient": "mario@example.com",
+  "subject": "Conferma ordine #1234",
+  "status": "sent",
+  "success": true,
+  "attempts": 1,
+  "error": null,
+  "sent_at": "2026-08-05T17:24:11+02:00",
+  "created_at": "2026-08-05T17:24:09+02:00"
+}
+```
+
+L'URL chiamato è quello di **default** configurato in *Impostazioni → Webhook* (vuoto = nessuna notifica), a meno che la richiesta API non abbia indicato un `webhook` proprio: in quel caso l'URL viene salvato sulla riga dell'email (colonna `webhook`) e ha la precedenza, anche sui re-invii.
+
+Timeout di 10 secondi, risposta attesa `2xx`, nessun retry: un webhook lento o irraggiungibile non blocca né altera l'invio dell'email, l'errore finisce solo nel log.
 
 ## Dashboard
 
 - **`/dashboard`** — statistiche globali, filtri (destinatario, oggetto, intervallo date), log invii paginato, anteprima email con download allegati, re-invio manuale, pulsante *Ferma/Riattiva Invio Email*.
 - **`/settings/smtp`** *(solo admin)* — configurazione SMTP (test connessione + email di prova).
+- **`/settings/webhook`** *(solo admin)* — webhook di default per l'esito degli invii (con notifica di prova) e documentazione del payload.
 - **`/settings/api-keys`** *(solo admin)* — elenco chiavi API: copia, creazione, rinomina, rigenerazione, eliminazione.
 - **`/users`** *(solo admin)* — CRUD utenti con flag amministratore. Protezioni: niente auto-eliminazione, deve sempre esistere almeno un admin.
 - **`/settings/profile`**, **`/settings/security`** — profilo e cambio password personale.
@@ -197,4 +223,5 @@ La registrazione pubblica è disabilitata: gli utenti vengono creati dall'instal
 - **Chiavi API** in tabella `api_keys` (`name` univoco, `key`, timestamps): anche i segreti sono cifrati con `APP_KEY` — servono in chiaro nel pannello, quindi la cifratura è reversibile e il confronto in fase di autenticazione avviene riga per riga. Ruotare `APP_KEY` invalida sia la password SMTP sia le chiavi: vanno reinserita l'una e rigenerate le altre.
 - **Coda**: tabella `emails` (`pending → sending → sent|failed`), claim atomico con lock, batch da 50, sweep automatico delle righe `sending` bloccate da più di 10 minuti. Nessun retry automatico: le email fallite si re-inviano dalla dashboard.
 - **Kill switch** (`mailer_enabled`): blocca sia l'API sia il worker della coda.
+- **Webhook** (`webhook_url` nelle impostazioni, colonna `emails.webhook` per l'override della singola email): la chiamata è sincrona rispetto all'invio ma non può farlo fallire — `App\Services\WebhookService` cattura ogni errore e lo registra nel log.
 - Test: `php artisan test` · Lint: `vendor/bin/pint` · Frontend: `npm run lint`, `npm run types:check`.

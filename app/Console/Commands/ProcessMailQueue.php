@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Contracts\BridgeMailer;
+use App\Contracts\WebhookNotifier;
 use App\Models\Email;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -25,7 +26,7 @@ class ProcessMailQueue extends Command
      */
     protected $description = 'Invia le email in coda (stato pending)';
 
-    public function handle(BridgeMailer $mailer): int
+    public function handle(BridgeMailer $mailer, WebhookNotifier $webhook): int
     {
         // Righe rimaste in "sending" per un worker interrotto: tornano failed
         // così non restano bloccate per sempre (re-inviabili dalla dashboard).
@@ -47,7 +48,7 @@ class ProcessMailQueue extends Command
         // Claim atomico del batch: evita il doppio invio con worker concorrenti.
         $ids = DB::transaction(function () use ($batch) {
             $ids = Email::pending()
-                ->orderBy('id')
+                ->orderBy('id', 'asc')
                 ->limit($batch)
                 ->lockForUpdate()
                 ->pluck('id');
@@ -68,7 +69,7 @@ class ProcessMailQueue extends Command
         $sent = 0;
         $failed = 0;
 
-        foreach (Email::whereIn('id', $ids)->orderBy('id')->get() as $email) {
+        foreach (Email::whereIn('id', $ids)->orderBy('id', 'asc')->get() as $email) {
             $result = $mailer->send($email);
 
             if ($result === true) {
@@ -89,6 +90,8 @@ class ProcessMailQueue extends Command
 
                 Log::warning("Invio email #{$email->id} a {$email->recipient} fallito: {$result}");
             }
+
+            $webhook->notify($email);
         }
 
         $this->info("Coda processata. Inviate: {$sent}, fallite: {$failed}.");

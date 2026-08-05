@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Contracts\BridgeMailer;
+use App\Contracts\WebhookNotifier;
 use App\Http\Controllers\Controller;
 use App\Models\Email;
 use App\Models\Setting;
+use App\Services\WebhookService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,7 +19,7 @@ use Throwable;
  */
 class SendController extends Controller
 {
-    public function __invoke(Request $request, BridgeMailer $mailer): JsonResponse
+    public function __invoke(Request $request, BridgeMailer $mailer, WebhookNotifier $webhook): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
@@ -61,14 +63,25 @@ class SendController extends Controller
             ], 400);
         }
 
+        // Webhook della singola richiesta: sostituisce quello di default
+        // delle impostazioni per le email create qui.
+        $webhookUrl = $data['webhook'] ?? null;
+
+        if ($webhookUrl !== null && ! WebhookService::isValidUrl($webhookUrl)) {
+            return response()->json([
+                'error' => 'Invalid webhook',
+                'webhook' => is_scalar($webhookUrl) ? (string) $webhookUrl : '',
+            ], 400);
+        }
+
         $subject = (string) $data['subject'];
         $body = (string) $data['body'];
         $attachments = is_array($data['attachments'] ?? null) ? array_values($data['attachments']) : [];
         $sync = filter_var($data['sync'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $sync
-            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer, $uuid)
-            : $this->queue($recipients, $subject, $body, $attachments, $uuid);
+            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer, $webhook, $uuid, $webhookUrl)
+            : $this->queue($recipients, $subject, $body, $attachments, $uuid, $webhookUrl);
     }
 
     /**
@@ -77,7 +90,7 @@ class SendController extends Controller
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
      */
-    protected function queue(array $recipients, string $subject, string $body, array $attachments, ?string $uuid = null): JsonResponse
+    protected function queue(array $recipients, string $subject, string $body, array $attachments, ?string $uuid = null, ?string $webhookUrl = null): JsonResponse
     {
         try {
             $ids = [];
@@ -89,6 +102,7 @@ class SendController extends Controller
                     'subject' => $subject,
                     'body' => $body,
                     'attachments' => $attachments ?: null,
+                    'webhook' => $webhookUrl,
                 ]);
 
                 // Id come stringhe: parità con il contratto della vecchia app.
@@ -112,7 +126,7 @@ class SendController extends Controller
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
      */
-    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer, ?string $uuid = null): JsonResponse
+    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer, WebhookNotifier $webhook, ?string $uuid = null, ?string $webhookUrl = null): JsonResponse
     {
         $sent = [];
         $failed = [];
@@ -125,6 +139,7 @@ class SendController extends Controller
                     'subject' => $subject,
                     'body' => $body,
                     'attachments' => $attachments ?: null,
+                    'webhook' => $webhookUrl,
                     'status' => Email::STATUS_SENDING,
                 ]);
 
@@ -145,6 +160,8 @@ class SendController extends Controller
                     ]);
                     $failed[] = ['email' => $recipient, 'error' => $result];
                 }
+
+                $webhook->notify($email);
             }
         } catch (Throwable $e) {
             return response()->json(['error' => 'Database error', 'details' => $e->getMessage()], 500);

@@ -6,6 +6,7 @@ use App\Http\Controllers\InstallerController;
 use App\Http\Controllers\MailerToggleController;
 use App\Http\Controllers\Settings\ApiKeyController;
 use App\Http\Controllers\Settings\SmtpController;
+use App\Http\Controllers\Settings\WebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\RedirectIfInstalled;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('settings/smtp', [SmtpController::class, 'update'])->name('smtp.update');
         Route::post('settings/smtp/test', [SmtpController::class, 'test'])->name('smtp.test');
         Route::post('settings/smtp/test-email', [SmtpController::class, 'sendTest'])->name('smtp.send-test');
+        Route::get('settings/webhook', [WebhookController::class, 'edit'])->name('webhook.edit');
+        Route::put('settings/webhook', [WebhookController::class, 'update'])->name('webhook.update');
+        Route::post('settings/webhook/test', [WebhookController::class, 'test'])->name('webhook.test');
         Route::get('settings/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
         Route::get('settings/api-keys/docs', [ApiKeyController::class, 'docs'])->name('api-keys.docs');
         Route::post('settings/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');

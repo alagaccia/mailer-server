@@ -169,6 +169,42 @@ class SendEndpointTest extends TestCase
         $this->assertSame(0, Email::count());
     }
 
+    public function test_invalid_webhook_returns_400(): void
+    {
+        $this->send(['to' => 'a@b.it', 'subject' => 'S', 'body' => 'B', 'webhook' => 'non-un-url'])
+            ->assertStatus(400)
+            ->assertExactJson(['error' => 'Invalid webhook', 'webhook' => 'non-un-url']);
+
+        // Anche gli schemi diversi da http/https vengono rifiutati.
+        $this->send(['to' => 'a@b.it', 'subject' => 'S', 'body' => 'B', 'webhook' => 'ftp://esempio.it/hook'])
+            ->assertStatus(400)
+            ->assertExactJson(['error' => 'Invalid webhook', 'webhook' => 'ftp://esempio.it/hook']);
+
+        $this->assertSame(0, Email::count());
+    }
+
+    public function test_webhook_is_stored_on_every_queued_row(): void
+    {
+        $this->send([
+            'to' => ['a@b.it', 'c@d.it'],
+            'subject' => 'S',
+            'body' => 'B',
+            'webhook' => 'https://tuo-software.it/hooks/mail-bridge',
+        ])->assertStatus(201);
+
+        $this->assertSame(
+            2,
+            Email::where('webhook', 'https://tuo-software.it/hooks/mail-bridge')->count(),
+        );
+    }
+
+    public function test_webhook_is_null_when_not_provided(): void
+    {
+        $this->send(['to' => 'a@b.it', 'subject' => 'S', 'body' => 'B'])->assertStatus(201);
+
+        $this->assertNull(Email::first()->webhook);
+    }
+
     public function test_async_send_queues_one_row_per_recipient(): void
     {
         $response = $this->send([

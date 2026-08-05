@@ -18,13 +18,13 @@ const params: Param[] = [
         type: 'string | string[]',
         required: true,
         description:
-            "Destinatario o elenco di destinatari. Ogni valore deve essere un indirizzo email valido; con più destinatari viene creata una email per ciascuno.",
+            'Destinatario o elenco di destinatari. Ogni valore deve essere un indirizzo email valido; con più destinatari viene creata una email per ciascuno.',
     },
     {
         name: 'subject',
         type: 'string',
         required: true,
-        description: "Oggetto del messaggio.",
+        description: 'Oggetto del messaggio.',
     },
     {
         name: 'body',
@@ -37,7 +37,7 @@ const params: Param[] = [
         type: 'array',
         required: false,
         description:
-            "Elenco di allegati: ogni elemento accetta filename, content (contenuto codificato in base64) e mime.",
+            'Elenco di allegati: ogni elemento accetta filename, content (contenuto codificato in base64) e mime.',
     },
     {
         name: 'uuid',
@@ -45,6 +45,13 @@ const params: Param[] = [
         required: false,
         description:
             "Identificativo UUID dell'email, utile per correlarla a un record del tuo software. Se assente ne viene generato uno automaticamente. Con più destinatari lo stesso uuid viene assegnato a tutte le email create dalla richiesta.",
+    },
+    {
+        name: 'webhook',
+        type: 'string',
+        required: false,
+        description:
+            "URL http/https chiamato in POST quando l'email viene elaborata, per notificare l'esito dell'invio. Sostituisce il webhook di default configurato in Impostazioni → Webhook. Con più destinatari viene assegnato a tutte le email create dalla richiesta, che riceve quindi una notifica per ciascuna.",
     },
     {
         name: 'sync',
@@ -67,6 +74,7 @@ const requestExample = `{
       "mime": "application/pdf"
     }
   ],
+  "webhook": "https://tuo-software.it/hooks/mail-bridge",
   "sync": false
 }`;
 
@@ -110,7 +118,12 @@ const errors = [
     {
         code: '400',
         body: '{"error": "Invalid uuid", "uuid": "..."}',
-        when: "Il campo uuid è presente ma non è un UUID valido.",
+        when: 'Il campo uuid è presente ma non è un UUID valido.',
+    },
+    {
+        code: '400',
+        body: '{"error": "Invalid webhook", "webhook": "..."}',
+        when: 'Il campo webhook è presente ma non è un URL http/https valido.',
     },
     {
         code: '401',
@@ -197,9 +210,8 @@ const preClass =
                     La chiave può essere inviata in due modi equivalenti: è
                     valida qualunque chiave dell'elenco.
                 </p>
-                <pre
-                    :class="preClass"
-                >X-API-KEY: &lt;chiave&gt;
+                <pre :class="preClass">
+X-API-KEY: &lt;chiave&gt;
 
 // oppure
 
@@ -216,7 +228,11 @@ Authorization: Bearer &lt;chiave&gt;</pre>
         <div :class="cardClass">
             <h3 :class="headerClass">Parametri</h3>
             <div class="divide-y divide-gray-800/50">
-                <div v-for="param in params" :key="param.name" class="px-6 py-4">
+                <div
+                    v-for="param in params"
+                    :key="param.name"
+                    class="px-6 py-4"
+                >
                     <div class="mb-1 flex flex-wrap items-center gap-3">
                         <code class="font-mono text-sm text-blue-400">{{
                             param.name
@@ -247,9 +263,8 @@ Authorization: Bearer &lt;chiave&gt;</pre>
             <div class="space-y-4 px-6 py-5">
                 <pre :class="preClass">{{ requestExample }}</pre>
                 <p class="text-xs text-gray-500">Con curl:</p>
-                <pre
-                    :class="preClass"
-                >curl -X POST {{ endpoint }} \
+                <pre :class="preClass">
+curl -X POST {{ endpoint }} \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: &lt;chiave&gt;" \
   -d '{"to":"mario@example.com","subject":"Ciao","body":"&lt;p&gt;Test&lt;/p&gt;"}'</pre>
@@ -280,7 +295,11 @@ Authorization: Bearer &lt;chiave&gt;</pre>
         <div :class="cardClass">
             <h3 :class="headerClass">Errori</h3>
             <div class="divide-y divide-gray-800/50">
-                <div v-for="error in errors" :key="error.body" class="px-6 py-4">
+                <div
+                    v-for="error in errors"
+                    :key="error.body"
+                    class="px-6 py-4"
+                >
                     <div class="mb-1 flex flex-wrap items-center gap-3">
                         <span
                             class="rounded border border-amber-500/30 bg-amber-600/20 px-2 py-0.5 font-mono text-xs font-bold text-amber-400"
