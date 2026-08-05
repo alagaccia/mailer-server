@@ -6,19 +6,30 @@ import CopyField from '@/components/bridge/CopyField.vue';
 import { Toaster } from '@/components/ui/sonner';
 import { postJson } from '@/lib/http';
 
-defineProps<{
+type ComposerStatus = {
+    available: boolean;
+    source: 'project' | 'system' | null;
+    path: string | null;
+    version: string | null;
+};
+
+const props = defineProps<{
     envWritable: boolean;
+    composer: ComposerStatus;
 }>();
 
 const steps = [
     { id: 1, title: 'Amministratore' },
     { id: 2, title: 'Database' },
     { id: 3, title: 'SMTP' },
+    { id: 4, title: 'Composer' },
 ];
 
 const step = ref(1);
 const busy = ref(false);
 const testingSmtp = ref(false);
+const installingComposer = ref(false);
+const composer = ref<ComposerStatus>(props.composer);
 const apiKey = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
 
@@ -114,6 +125,36 @@ async function testSmtp(): Promise<void> {
     }
 }
 
+/**
+ * Scarica composer.phar dentro al progetto (passo facoltativo).
+ */
+async function installComposer(): Promise<void> {
+    installingComposer.value = true;
+    errors.value = {};
+
+    try {
+        const { ok, status, data } = await postJson<{
+            composer?: ComposerStatus;
+        }>('/install/composer', {});
+
+        if (ok && data.composer) {
+            composer.value = data.composer;
+            toast.success('Composer installato nel progetto!');
+        } else if (status === 422 && data.errors) {
+            errors.value = data.errors;
+            toast.error('Installazione di Composer non riuscita.');
+        } else {
+            toast.error(
+                data.message ?? 'Errore imprevisto durante il download.',
+            );
+        }
+    } catch {
+        toast.error('Errore di rete durante il download di Composer.');
+    } finally {
+        installingComposer.value = false;
+    }
+}
+
 async function finalize(): Promise<void> {
     busy.value = true;
     errors.value = {};
@@ -144,6 +185,8 @@ async function finalize(): Promise<void> {
                 step.value = 1;
             } else if (keys.includes('db.')) {
                 step.value = 2;
+            } else if (keys.includes('smtp.')) {
+                step.value = 3;
             }
 
             toast.error(
@@ -470,7 +513,7 @@ const errorClass = 'mt-2 text-xs text-red-400';
                     </form>
 
                     <!-- Step 3: SMTP -->
-                    <form v-else @submit.prevent="finalize">
+                    <form v-else-if="step === 3" @submit.prevent="step = 4">
                         <p class="mb-6 text-sm text-gray-400">
                             Parametri SMTP per l'invio delle email. Potrai
                             modificarli in seguito dalle impostazioni.
@@ -657,16 +700,106 @@ const errorClass = 'mt-2 text-xs text-red-400';
                                 </button>
                                 <button
                                     type="submit"
-                                    :disabled="busy || !envWritable"
-                                    class="cursor-pointer rounded-lg border border-emerald-500 bg-emerald-600 px-6 py-2 font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="cursor-pointer rounded-lg border border-blue-500 bg-blue-600 px-6 py-2 font-bold text-white transition hover:bg-blue-700"
                                 >
-                                    {{
-                                        busy
-                                            ? 'Installazione...'
-                                            : 'Completa Installazione'
-                                    }}
+                                    Avanti →
                                 </button>
                             </div>
+                        </div>
+                    </form>
+
+                    <!-- Step 4: Composer (facoltativo) -->
+                    <form v-else @submit.prevent="finalize">
+                        <p class="mb-6 text-sm text-gray-400">
+                            Composer serve per aggiornare le dipendenze del
+                            bridge. Se non è disponibile sul server, puoi
+                            installarne una copia locale nel progetto: viene
+                            scaricato
+                            <code class="font-mono text-blue-400"
+                                >composer.phar</code
+                            >
+                            dal sito ufficiale (con verifica SHA-256) e aggiunto
+                            a <code class="font-mono">.gitignore</code>, quindi
+                            non finisce su git.
+                        </p>
+
+                        <div
+                            v-if="composer.available"
+                            class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200"
+                        >
+                            <p class="font-bold">
+                                {{
+                                    composer.source === 'project'
+                                        ? 'Composer è installato nel progetto.'
+                                        : 'Composer è già disponibile sul server.'
+                                }}
+                            </p>
+                            <p class="mt-1 text-emerald-300/80">
+                                <span class="font-mono">{{
+                                    composer.path
+                                }}</span>
+                                <span v-if="composer.version">
+                                    — {{ composer.version }}</span
+                                >
+                            </p>
+                        </div>
+
+                        <div
+                            v-else
+                            class="rounded-xl border border-gray-700 bg-gray-800/50 p-4 text-sm text-gray-300"
+                        >
+                            <p class="font-bold text-gray-200">
+                                Composer non è disponibile su questo server.
+                            </p>
+                            <p class="mt-1 text-gray-400">
+                                Puoi installarlo ora dentro al progetto oppure
+                                saltare questo passaggio e proseguire.
+                            </p>
+                        </div>
+
+                        <p v-if="err('composer')" :class="errorClass">
+                            {{ err('composer') }}
+                        </p>
+
+                        <div
+                            v-if="composer.source !== 'project'"
+                            class="mt-4"
+                        >
+                            <button
+                                type="button"
+                                :disabled="installingComposer"
+                                class="cursor-pointer rounded-lg border border-gray-700 bg-gray-800 px-6 py-2 text-gray-300 transition hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                @click="installComposer"
+                            >
+                                {{
+                                    installingComposer
+                                        ? 'Download in corso...'
+                                        : 'Installa Composer nel progetto'
+                                }}
+                            </button>
+                        </div>
+
+                        <div
+                            class="mt-8 flex flex-wrap items-center justify-between gap-2"
+                        >
+                            <button
+                                type="button"
+                                class="cursor-pointer rounded-lg border border-gray-700 bg-gray-800 px-6 py-2 text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                                @click="step = 3"
+                            >
+                                ← Indietro
+                            </button>
+                            <button
+                                type="submit"
+                                :disabled="busy || !envWritable"
+                                class="cursor-pointer rounded-lg border border-emerald-500 bg-emerald-600 px-6 py-2 font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {{
+                                    busy
+                                        ? 'Installazione...'
+                                        : 'Completa Installazione'
+                                }}
+                            </button>
                         </div>
                     </form>
                 </div>

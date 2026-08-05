@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\BridgeMailer;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\ComposerInstaller;
 use App\Support\EnvWriter;
 use App\Support\InstallState;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +29,24 @@ class InstallerController extends Controller
     {
         return Inertia::render('installer/Install', [
             'envWritable' => is_writable(app()->environmentFilePath()),
+            'composer' => ComposerInstaller::status(),
         ]);
+    }
+
+    /**
+     * Step facoltativo: installa Composer dentro al progetto (composer.phar).
+     */
+    public function installComposer(): JsonResponse
+    {
+        try {
+            $status = ComposerInstaller::install();
+        } catch (Throwable $e) {
+            throw ValidationException::withMessages([
+                'composer' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['composer' => $status]);
     }
 
     /**

@@ -23,6 +23,7 @@ Configura il virtual host con **document root su `public/`**, poi apri l'applica
 1. **Amministratore** — il primo utente (avrà `is_admin = true`)
 2. **Database** — credenziali MySQL (connessione verificata prima di procedere)
 3. **SMTP** — parametri di invio (con test di connessione facoltativo)
+4. **Composer** — passo facoltativo: se Composer non è disponibile sul server, il wizard può scaricare `composer.phar` nella radice del progetto (download da `getcomposer.org` con verifica SHA-256, `chmod 0755` e riga in `.gitignore`, quindi non viene versionato). Da lì si usa con `php composer.phar <comando>`.
 
 Al termine viene generata automaticamente la **chiave API**, mostrata una sola volta a schermo (resta comunque visibile agli admin in *Impostazioni*). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
 
@@ -43,7 +44,7 @@ mysql -u <utente> -p -e "DROP DATABASE IF EXISTS <nome_db>; CREATE DATABASE <nom
 rm -f storage/app/installed.json
 ```
 
-Poi apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 3 step.
+Poi apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 4 step.
 
 > ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
 
