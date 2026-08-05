@@ -41,6 +41,17 @@ Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; us
 
 > ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
 
+### Hosting condiviso (senza build su server)
+
+Se il server di produzione non permette di eseguire `npm ci && npm run build` (hosting condiviso, niente accesso a Node), compila gli asset in locale e caricali via `rsync`: `public/build` resta ignorato da git (vedi `.gitignore`) e viaggia solo tramite trasferimento diretto, senza toccare il repository.
+
+```bash
+npm run build
+rsync -avz --delete public/build/ utente@server:/percorso/mailer-server/public/build/
+```
+
+Ripeti questi due comandi a ogni deploy che tocca frontend/asset. Il resto del codice (PHP, migrazioni, ecc.) continua a essere aggiornato come al solito (es. `git pull`).
+
 ### Cron (obbligatorio)
 
 La coda email viene processata **solo** dallo scheduler, ogni minuto:
