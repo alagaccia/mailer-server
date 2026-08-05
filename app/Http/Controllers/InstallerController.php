@@ -90,17 +90,8 @@ class InstallerController extends Controller
 
         $this->assertDatabaseConnects($db, 'db.host');
 
-        EnvWriter::write([
-            'DB_CONNECTION' => 'mysql',
-            'DB_HOST' => $db['host'],
-            'DB_PORT' => (string) $db['port'],
-            'DB_DATABASE' => $db['database'],
-            'DB_USERNAME' => $db['username'],
-            'DB_PASSWORD' => $db['password'] ?? '',
-        ]);
-
-        // Il .env appena scritto non viene riletto durante questa richiesta:
-        // la stessa configurazione va applicata a runtime prima di migrare.
+        // Configurazione applicata a runtime per questa richiesta; il .env
+        // viene scritto solo alla fine, quando migrazioni e dati sono a posto.
         config([
             'database.connections.mysql.host' => $db['host'],
             'database.connections.mysql.port' => (int) $db['port'],
@@ -143,6 +134,16 @@ class InstallerController extends Controller
 
         $apiKey = Str::random(48);
         Setting::set('api_key', $apiKey);
+
+        // Persiste le credenziali per le richieste successive.
+        EnvWriter::write([
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => $db['host'],
+            'DB_PORT' => (string) $db['port'],
+            'DB_DATABASE' => $db['database'],
+            'DB_USERNAME' => $db['username'],
+            'DB_PASSWORD' => $db['password'] ?? '',
+        ]);
 
         // Un'eventuale configurazione cachata ignorerebbe il nuovo .env.
         Artisan::call('config:clear');
