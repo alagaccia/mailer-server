@@ -22,6 +22,7 @@ class EmailController extends Controller
 
         return response()->json([
             'id' => $email->id,
+            'uuid' => $email->uuid,
             'recipient' => $email->recipient,
             'subject' => $email->subject,
             'body' => $email->body,

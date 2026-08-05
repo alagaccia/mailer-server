@@ -20,6 +20,7 @@ export type EmailAttachment = {
 
 export type EmailDetail = {
     id: number;
+    uuid: string | null;
     recipient: string;
     subject: string;
     body: string;

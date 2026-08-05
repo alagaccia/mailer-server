@@ -115,6 +115,14 @@ function downloadAttachment(attachment: EmailAttachment): void {
                     </div>
 
                     <div class="space-y-2 border-b border-gray-800 p-6 text-sm">
+                        <div v-if="email.uuid" class="flex">
+                            <span class="w-20 shrink-0 text-gray-500"
+                                >UUID:</span
+                            >
+                            <span class="font-mono text-xs break-all text-gray-300">{{
+                                email.uuid
+                            }}</span>
+                        </div>
                         <div class="flex">
                             <span class="w-20 shrink-0 text-gray-500">A:</span>
                             <span class="text-gray-200">{{
