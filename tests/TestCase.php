@@ -3,7 +3,6 @@
 namespace Tests;
 
 use App\Models\Setting;
-use App\Support\ComposerInstaller;
 use App\Support\InstallState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Laravel\Fortify\Features;
@@ -11,8 +10,6 @@ use Laravel\Fortify\Features;
 abstract class TestCase extends BaseTestCase
 {
     protected string $installFlagPath;
-
-    protected string $composerPharPath;
 
     protected function setUp(): void
     {
@@ -25,11 +22,6 @@ abstract class TestCase extends BaseTestCase
         $this->installFlagPath = tempnam(sys_get_temp_dir(), 'mailer-installed-');
         file_put_contents($this->installFlagPath, '{}');
         InstallState::usePath($this->installFlagPath);
-
-        // Il phar di Composer non deve mai finire nella cartella del progetto
-        // durante i test.
-        $this->composerPharPath = sys_get_temp_dir().'/mailer-composer-'.uniqid().'.phar';
-        ComposerInstaller::usePath($this->composerPharPath);
     }
 
     protected function tearDown(): void
@@ -40,12 +32,6 @@ abstract class TestCase extends BaseTestCase
 
         InstallState::forgetCompletion();
         InstallState::usePath(null);
-
-        if (is_file($this->composerPharPath)) {
-            unlink($this->composerPharPath);
-        }
-
-        ComposerInstaller::usePath(null);
 
         parent::tearDown();
     }

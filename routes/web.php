@@ -17,7 +17,6 @@ Route::middleware(RedirectIfInstalled::class)->prefix('install')->group(function
     Route::post('validate-admin', [InstallerController::class, 'validateAdmin'])->name('install.validate-admin');
     Route::post('test-database', [InstallerController::class, 'testDatabase'])->name('install.test-database');
     Route::post('test-smtp', [InstallerController::class, 'testSmtp'])->name('install.test-smtp');
-    Route::post('composer', [InstallerController::class, 'installComposer'])->name('install.composer');
     Route::post('finalize', [InstallerController::class, 'finalize'])->name('install.finalize');
 });
 
