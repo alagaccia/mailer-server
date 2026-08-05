@@ -28,6 +28,25 @@ Al termine viene generata automaticamente la **chiave API**, mostrata una sola v
 
 > Non eseguire `php artisan config:cache` prima dell'installazione: la configurazione cachata ignorerebbe il `.env` scritto dal wizard.
 
+### Rifare l'installer (ambiente locale/di test)
+
+Per riportare l'app allo stato "non installato" e rivedere il wizard da capo:
+
+```bash
+rm -f storage/app/installed.json
+```
+
+Questo basta a riaprire `/install`: il wizard sovrascrive utente admin e impostazioni esistenti (`updateOrCreate`), quindi non è strettamente necessario toccare il database. Per una prova pulita, senza le vecchie email/utenti in coda, ricrea anche il database prima di reinstallare:
+
+```bash
+mysql -u <utente> -p -e "DROP DATABASE IF EXISTS <nome_db>; CREATE DATABASE <nome_db> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+rm -f storage/app/installed.json
+```
+
+Poi apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 3 step.
+
+> ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
+
 ### Cron (obbligatorio)
 
 La coda email viene processata **solo** dallo scheduler, ogni minuto:
