@@ -104,6 +104,13 @@ class InstallerController extends Controller
         ]);
         DB::purge('mysql');
 
+        // `migrate:fresh` è tra i comandi distruttivi bloccati in produzione da
+        // DB::prohibitDestructiveCommands() (AppServiceProvider). Il wizard è
+        // un punto d'ingresso volontario e già protetto (richiede le credenziali
+        // del DB), quindi qui è legittimo azzerarlo per ricreare l'app da zero:
+        // il flag è statico e per-request, torna attivo alla richiesta successiva.
+        DB::prohibitDestructiveCommands(false);
+
         try {
             $exitCode = Artisan::call('migrate:fresh', ['--force' => true]);
         } catch (Throwable $e) {

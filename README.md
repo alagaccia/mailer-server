@@ -45,12 +45,71 @@ Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; us
 
 Se il server di produzione non permette di eseguire `npm ci && npm run build` (hosting condiviso, niente accesso a Node), compila gli asset in locale e caricali via `rsync`: `public/build` resta ignorato da git (vedi `.gitignore`) e viaggia solo tramite trasferimento diretto, senza toccare il repository.
 
+#### Comando `deploy:assets` (consigliato)
+
+Il progetto include un comando artisan che incapsula la sincronizzazione, con i parametri del server presi dal `.env`:
+
+```bash
+npm run build
+php artisan deploy:assets
+```
+
+oppure, in un colpo solo (build + upload):
+
+```bash
+php artisan deploy:assets --build
+```
+
+| Opzione | Effetto |
+|---|---|
+| `--build` | Esegue `npm run build` prima di sincronizzare (si ferma se la build fallisce) |
+| `--dry-run` | Mostra cosa verrebbe trasferito/cancellato senza scrivere nulla sul server |
+| `--force` | Salta la richiesta di conferma (utile in script non interattivi) |
+
+Il comando stampa sempre la riga `rsync` che sta per eseguire e chiede conferma prima di procedere (`--dry-run` e `--force` la saltano).
+
+Variabili di configurazione (in `.env`, vedi `.env.example`; mappate in `config/deploy.php`):
+
+| Variabile | Descrizione | Default |
+|---|---|---|
+| `DEPLOY_SSH_USER` | Utente SSH del server | — (obbligatoria) |
+| `DEPLOY_SSH_HOST` | Host del server | — (obbligatoria) |
+| `DEPLOY_SSH_PORT` | Porta SSH (se diversa da 22 viene passata come `-e "ssh -p N"`) | `22` |
+| `DEPLOY_LOCAL_PATH` | Cartella locale da inviare (relativa alla radice del progetto o assoluta) | `public/build` |
+| `DEPLOY_REMOTE_PATH` | Cartella remota di destinazione (percorso assoluto) | — (obbligatoria) |
+| `DEPLOY_RSYNC_OPTIONS` | Opzioni passate a rsync | `-avz --delete` |
+
+Esempio:
+
+```dotenv
+DEPLOY_SSH_USER=utente
+DEPLOY_SSH_HOST=server.esempio.it
+DEPLOY_SSH_PORT=22
+DEPLOY_LOCAL_PATH=public/build
+DEPLOY_REMOTE_PATH=/home/utente/subdomains/mailer/public/build
+DEPLOY_RSYNC_OPTIONS="-avz --delete"
+```
+
+che genera il comando:
+
+```bash
+rsync -avz --delete public/build/ utente@server.esempio.it:/home/utente/subdomains/mailer/public/build
+```
+
+> Se hai già fatto `php artisan config:cache` in locale, ricordati di rilanciarlo (o `config:clear`) dopo aver cambiato queste variabili.
+
+#### rsync a mano
+
+Lo stesso risultato, senza passare dal comando:
+
 ```bash
 npm run build
 rsync -avz --delete public/build/ utente@server:/percorso/mailer-server/public/build/
 ```
 
 `rsync` trasporta i dati via SSH, quindi usa automaticamente le chiavi già installate (nessuna password richiesta). `--delete` rimuove sul server i file che non esistono più nella build locale — utile perché Vite genera nomi con hash diversi ad ogni build e altrimenti si accumulerebbero versioni vecchie.
+
+#### scp
 
 In alternativa, con lo stesso accesso SSH puoi usare `scp`, che copia l'intera cartella in un colpo solo:
 
