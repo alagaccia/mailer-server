@@ -130,6 +130,11 @@ async function finalize(): Promise<void> {
 
         if (ok && data.api_key) {
             apiKey.value = data.api_key;
+
+            // L'installer è ora disattivato: un refresh su /install darebbe
+            // 404. Aggiorniamo la barra indirizzi senza ricaricare la pagina,
+            // così un F5 accidentale porta al login invece che a un 404.
+            window.history.replaceState({}, '', '/login');
         } else if (status === 422 && data.errors) {
             errors.value = data.errors;
 
