@@ -102,11 +102,14 @@ const labelClass = 'mb-2 block text-xs font-bold text-gray-500 uppercase';
             <div>
                 <h2 class="font-bold text-gray-200">Chiavi API</h2>
                 <p class="mt-1 text-xs text-gray-500">
-                    Da inviare nell'header
-                    <code class="font-mono text-blue-400">X-API-KEY</code> alle
-                    richieste
-                    <code class="font-mono text-blue-400">POST /api/send</code>.
-                    Qualunque chiave dell'elenco è valida.
+                    Da inviare alle richieste
+                    <code class="font-mono text-blue-400">POST /api/send</code>
+                    nell'header
+                    <code class="font-mono text-blue-400">X-API-KEY</code> oppure
+                    come bearer token
+                    <code class="font-mono text-blue-400"
+                        >Authorization: Bearer &lt;chiave&gt;</code
+                    >. Qualunque chiave dell'elenco è valida.
                 </p>
             </div>
             <button

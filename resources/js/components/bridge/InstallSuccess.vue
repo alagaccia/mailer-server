@@ -43,10 +43,13 @@ async function leaveTo(url: string): Promise<void> {
             </h2>
             <p class="mt-2 text-sm text-gray-400">
                 Questa è la chiave API per l'endpoint
-                <code class="font-mono text-blue-400">POST /api/send</code>
-                (header
-                <code class="font-mono text-blue-400">X-API-KEY</code>). Potrai
-                rivederla e rigenerarla dalle impostazioni.
+                <code class="font-mono text-blue-400">POST /api/send</code>.
+                Puoi inviarla nell'header
+                <code class="font-mono text-blue-400">X-API-KEY</code> oppure
+                come bearer token
+                <code class="font-mono text-blue-400"
+                    >Authorization: Bearer &lt;chiave&gt;</code
+                >. Potrai rivederla e rigenerarla dalle impostazioni.
             </p>
         </div>
 
