@@ -105,10 +105,20 @@ class InstallerController extends Controller
         DB::purge('mysql');
 
         try {
-            Artisan::call('migrate:fresh', ['--force' => true]);
+            $exitCode = Artisan::call('migrate:fresh', ['--force' => true]);
         } catch (Throwable $e) {
             throw ValidationException::withMessages([
                 'db.host' => __('Migrazione del database fallita: :error', ['error' => $e->getMessage()]),
+            ]);
+        }
+
+        if ($exitCode !== 0) {
+            // Artisan::call() intercetta le eccezioni dei comandi e restituisce
+            // solo l'exit code: senza questo controllo un fallimento silenzioso
+            // della migrazione lascerebbe il DB senza tabelle e si proseguirebbe
+            // comunque a creare l'utente admin, causando un errore fuorviante.
+            throw ValidationException::withMessages([
+                'db.host' => __('Migrazione del database fallita: :error', ['error' => trim(Artisan::output())]),
             ]);
         }
 
