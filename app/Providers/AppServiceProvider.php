@@ -39,6 +39,6 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => null);
+        Password::defaults(fn (): ?Password => Password::min(1));
     }
 }

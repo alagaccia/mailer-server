@@ -33,8 +33,8 @@ const admin = reactive({
 const db = reactive({
     host: 'localhost',
     port: 3306,
-    database: '',
-    username: '',
+    database: 'mailer_bridge',
+    username: 'root',
     password: '',
 });
 
