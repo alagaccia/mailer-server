@@ -21,6 +21,12 @@ Route::middleware(RedirectIfInstalled::class)->prefix('install')->group(function
     Route::post('finalize', [InstallerController::class, 'finalize'])->name('install.finalize');
 });
 
+// Fuori dal gruppo: la schermata finale deve restare raggiungibile proprio
+// quando l'installazione è già completata. L'accesso è protetto dal token
+// monouso generato dal finalize.
+Route::get('install/complete', [InstallerController::class, 'complete'])->name('install.complete');
+Route::post('install/complete/dismiss', [InstallerController::class, 'dismissComplete'])->name('install.complete.dismiss');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -34,7 +40,11 @@ Route::middleware(['auth'])->group(function () {
         Route::put('settings/smtp', [SmtpController::class, 'update'])->name('smtp.update');
         Route::post('settings/smtp/test', [SmtpController::class, 'test'])->name('smtp.test');
         Route::post('settings/smtp/test-email', [SmtpController::class, 'sendTest'])->name('smtp.send-test');
-        Route::post('settings/api-key/regenerate', [ApiKeyController::class, 'regenerate'])->name('api-key.regenerate');
+        Route::get('settings/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
+        Route::post('settings/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
+        Route::put('settings/api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
+        Route::post('settings/api-keys/{apiKey}/regenerate', [ApiKeyController::class, 'regenerate'])->name('api-keys.regenerate');
+        Route::delete('settings/api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
 
         Route::get('users', [UserController::class, 'index'])->name('users.index');
         Route::post('users', [UserController::class, 'store'])->name('users.store');

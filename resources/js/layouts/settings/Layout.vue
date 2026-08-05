@@ -11,7 +11,8 @@ const items = computed(() => {
     ];
 
     if (page.props.auth.user?.is_admin) {
-        links.push({ title: 'SMTP & Chiave API', href: '/settings/smtp' });
+        links.push({ title: 'SMTP', href: '/settings/smtp' });
+        links.push({ title: 'Chiavi API', href: '/settings/api-keys' });
     }
 
     return links;

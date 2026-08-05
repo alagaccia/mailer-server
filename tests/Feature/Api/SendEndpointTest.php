@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Contracts\BridgeMailer;
+use App\Models\ApiKey;
 use App\Models\Email;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,7 +24,7 @@ class SendEndpointTest extends TestCase
         $this->mailer = new FakeBridgeMailer;
         $this->app->instance(BridgeMailer::class, $this->mailer);
 
-        Setting::set('api_key', 'test-api-key');
+        ApiKey::create(['name' => 'default', 'key' => 'test-api-key']);
         Setting::set('mailer_enabled', '1');
     }
 
@@ -61,6 +62,36 @@ class SendEndpointTest extends TestCase
         $this->send(['to' => 'a@b.it'], 'wrong-key')
             ->assertStatus(401)
             ->assertExactJson(['error' => 'Unauthorized']);
+    }
+
+    public function test_any_stored_api_key_is_accepted(): void
+    {
+        ApiKey::create(['name' => 'sito-vetrina', 'key' => 'seconda-chiave']);
+
+        $this->send([
+            'to' => 'a@b.it',
+            'subject' => 'Oggetto',
+            'body' => '<p>Corpo</p>',
+        ], 'seconda-chiave')->assertStatus(201);
+    }
+
+    public function test_bearer_token_is_accepted(): void
+    {
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer test-api-key',
+        ];
+
+        $this->call(
+            'POST',
+            '/api/send',
+            [],
+            [],
+            [],
+            $this->transformHeadersToServerVars($headers),
+            json_encode(['to' => 'a@b.it', 'subject' => 'Oggetto', 'body' => '<p>Corpo</p>']),
+        )->assertStatus(201);
     }
 
     public function test_get_method_returns_405_with_legacy_shape(): void

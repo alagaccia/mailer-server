@@ -38,6 +38,7 @@ abstract class TestCase extends BaseTestCase
             unlink($this->installFlagPath);
         }
 
+        InstallState::forgetCompletion();
         InstallState::usePath(null);
 
         if (is_file($this->composerPharPath)) {

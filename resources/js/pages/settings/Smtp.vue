@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import ConfirmDialog from '@/components/bridge/ConfirmDialog.vue';
-import CopyField from '@/components/bridge/CopyField.vue';
 import { firstValidationError, postJson } from '@/lib/http';
 
 const props = defineProps<{
@@ -17,7 +15,6 @@ const props = defineProps<{
         reply_to: string;
         password_set: boolean;
     };
-    apiKey: string | null;
 }>();
 
 const form = useForm({
@@ -93,15 +90,6 @@ async function sendTestEmail(): Promise<void> {
     } finally {
         sendingTest.value = false;
     }
-}
-
-// --- Chiave API --------------------------------------------------------------
-
-const confirmRegenerate = ref(false);
-
-function regenerate(): void {
-    confirmRegenerate.value = false;
-    router.post('/settings/api-key/regenerate', {}, { preserveScroll: true });
 }
 
 const inputClass =
@@ -323,37 +311,5 @@ const labelClass = 'mb-2 block text-xs font-bold text-gray-500 uppercase';
                 </div>
             </form>
         </div>
-
-        <div
-            class="rounded-2xl border border-gray-800 bg-gray-900 p-6 shadow-xl"
-        >
-            <h2 class="font-bold text-gray-200">Chiave API</h2>
-            <p class="mt-1 mb-6 text-xs text-gray-500">
-                Da inviare nell'header
-                <code class="font-mono text-blue-400">X-API-KEY</code> alle
-                richieste
-                <code class="font-mono text-blue-400">POST /api/send</code>.
-            </p>
-
-            <CopyField v-if="apiKey" :value="apiKey" />
-
-            <button
-                type="button"
-                class="mt-4 cursor-pointer rounded-lg border border-red-900/50 bg-red-600/20 px-4 py-2 text-sm font-bold text-red-400 transition hover:bg-red-600 hover:text-white"
-                @click="confirmRegenerate = true"
-            >
-                Rigenera Chiave
-            </button>
-        </div>
     </div>
-
-    <ConfirmDialog
-        :show="confirmRegenerate"
-        title="Rigenerare la chiave API?"
-        message="La chiave attuale smetterà immediatamente di funzionare: tutte le integrazioni esistenti dovranno essere aggiornate."
-        confirm-label="Rigenera"
-        danger
-        @confirm="regenerate"
-        @cancel="confirmRegenerate = false"
-    />
 </template>

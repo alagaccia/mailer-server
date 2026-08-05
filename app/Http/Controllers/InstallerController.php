@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\BridgeMailer;
+use App\Models\ApiKey;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\ComposerInstaller;
 use App\Support\EnvWriter;
 use App\Support\InstallState;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -121,7 +123,7 @@ class InstallerController extends Controller
         DB::purge('mysql');
 
         try {
-            Artisan::call('migrate', ['--force' => true]);
+            Artisan::call('migrate:fresh', ['--force' => true]);
         } catch (Throwable $e) {
             throw ValidationException::withMessages([
                 'db.host' => __('Migrazione del database fallita: :error', ['error' => $e->getMessage()]),
@@ -150,8 +152,9 @@ class InstallerController extends Controller
         Setting::set('smtp_reply_to', $smtp['reply_to'] ?? null);
         Setting::set('mailer_enabled', '1');
 
-        $apiKey = Str::random(48);
-        Setting::set('api_key', $apiKey);
+        // Prima chiave API: si chiama "default", le altre si creano dal pannello.
+        $apiKey = ApiKey::generateSecret();
+        ApiKey::updateOrCreate(['name' => 'default'], ['key' => $apiKey]);
 
         // Persiste le credenziali per le richieste successive.
         EnvWriter::write([
@@ -168,7 +171,45 @@ class InstallerController extends Controller
 
         InstallState::markInstalled(['version' => 1]);
 
-        return response()->json(['api_key' => $apiKey]);
+        // Da qui in poi le rotte del wizard rispondono 404: la schermata
+        // finale vive su una rotta dedicata, così resta raggiungibile anche
+        // dopo un refresh (o un reload forzato dal dev server).
+        $token = InstallState::rememberCompletion($apiKey);
+
+        return response()->json([
+            'api_key' => $apiKey,
+            'complete_token' => $token,
+            'complete_url' => route('install.complete', ['token' => $token], false),
+        ]);
+    }
+
+    /**
+     * Schermata finale: mostra la chiave API finché l'utente non la conferma
+     * (o finché il token non scade). Non redirige da nessuna parte.
+     */
+    public function complete(Request $request): Response|RedirectResponse
+    {
+        $completion = InstallState::completion($request->query('token'));
+
+        if ($completion === null) {
+            return redirect('/login');
+        }
+
+        return Inertia::render('installer/Complete', [
+            'apiKey' => $completion['api_key'],
+        ]);
+    }
+
+    /**
+     * L'utente ha salvato la chiave: il file temporaneo può sparire.
+     */
+    public function dismissComplete(Request $request): JsonResponse
+    {
+        if (InstallState::completion($request->input('token')) !== null) {
+            InstallState::forgetCompletion();
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     /**

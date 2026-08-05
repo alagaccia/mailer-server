@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
-import CopyField from '@/components/bridge/CopyField.vue';
+import InstallSuccess from '@/components/bridge/InstallSuccess.vue';
 import { Toaster } from '@/components/ui/sonner';
 import { postJson } from '@/lib/http';
 
@@ -31,6 +31,7 @@ const testingSmtp = ref(false);
 const installingComposer = ref(false);
 const composer = ref<ComposerStatus>(props.composer);
 const apiKey = ref<string | null>(null);
+const completeToken = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
 
 const admin = reactive({
@@ -160,22 +161,27 @@ async function finalize(): Promise<void> {
     errors.value = {};
 
     try {
-        const { ok, status, data } = await postJson<{ api_key?: string }>(
-            '/install/finalize',
-            {
-                admin,
-                db,
-                smtp,
-            },
-        );
+        const { ok, status, data } = await postJson<{
+            api_key?: string;
+            complete_token?: string;
+            complete_url?: string;
+        }>('/install/finalize', {
+            admin,
+            db,
+            smtp,
+        });
 
         if (ok && data.api_key) {
             apiKey.value = data.api_key;
+            completeToken.value = data.complete_token ?? null;
 
             // L'installer è ora disattivato: un refresh su /install darebbe
-            // 404. Aggiorniamo la barra indirizzi senza ricaricare la pagina,
-            // così un F5 accidentale porta al login invece che a un 404.
-            window.history.replaceState({}, '', '/login');
+            // 404. Puntiamo la barra indirizzi alla schermata finale dedicata,
+            // che con il token monouso ripropone la chiave anche dopo un
+            // reload (nostro o forzato dal dev server).
+            if (data.complete_url) {
+                window.history.replaceState({}, '', data.complete_url);
+            }
         } else if (status === 422 && data.errors) {
             errors.value = data.errors;
 
@@ -237,39 +243,11 @@ const errorClass = 'mt-2 text-xs text-red-400';
             </div>
 
             <!-- Schermata finale -->
-            <div
+            <InstallSuccess
                 v-if="installed"
-                class="rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-2xl"
-            >
-                <div class="mb-6 text-center">
-                    <div
-                        class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-3xl"
-                    >
-                        ✓
-                    </div>
-                    <h2 class="text-xl font-bold text-emerald-400">
-                        Installazione completata!
-                    </h2>
-                    <p class="mt-2 text-sm text-gray-400">
-                        Questa è la chiave API per l'endpoint
-                        <code class="font-mono text-blue-400"
-                            >POST /api/send</code
-                        >
-                        (header
-                        <code class="font-mono text-blue-400">X-API-KEY</code>).
-                        Potrai rivederla e rigenerarla dalle impostazioni.
-                    </p>
-                </div>
-
-                <CopyField :value="apiKey ?? ''" />
-
-                <a
-                    href="/login"
-                    class="mt-6 block w-full rounded-lg bg-blue-600 py-3 text-center font-bold text-white transition duration-200 hover:bg-blue-700"
-                >
-                    Vai al Login
-                </a>
-            </div>
+                :api-key="apiKey ?? ''"
+                :token="completeToken"
+            />
 
             <!-- Wizard -->
             <div

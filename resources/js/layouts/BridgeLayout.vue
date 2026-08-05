@@ -66,7 +66,15 @@ const navLinks = computed(() => {
 });
 
 function isCurrent(href: string): boolean {
-    if (href === '/settings/smtp' || href === '/settings/profile') {
+    // "Impostazioni" copre tutte le pagine admin (SMTP, chiavi API).
+    if (href === '/settings/smtp') {
+        return (
+            page.url.startsWith('/settings/smtp') ||
+            page.url.startsWith('/settings/api-keys')
+        );
+    }
+
+    if (href === '/settings/profile') {
         return page.url.startsWith(href);
     }
 

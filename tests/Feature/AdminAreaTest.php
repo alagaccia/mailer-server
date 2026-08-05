@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApiKey;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,7 +28,7 @@ class AdminAreaTest extends TestCase
     {
         $this->actingAs($this->member)->get('/users')->assertForbidden();
         $this->actingAs($this->member)->get('/settings/smtp')->assertForbidden();
-        $this->actingAs($this->member)->post('/settings/api-key/regenerate')->assertForbidden();
+        $this->actingAs($this->member)->get('/settings/api-keys')->assertForbidden();
     }
 
     public function test_admin_can_list_users(): void
@@ -133,24 +134,92 @@ class AdminAreaTest extends TestCase
         $this->assertSame('segretissima', Setting::get('smtp_password'));
     }
 
-    public function test_regenerating_api_key_invalidates_previous_one(): void
+    public function test_admin_can_list_api_keys(): void
     {
-        Setting::set('api_key', 'vecchia-chiave');
+        ApiKey::create(['name' => 'default', 'key' => 'chiave-default']);
 
         $this->actingAs($this->admin)
-            ->post('/settings/api-key/regenerate')
+            ->get('/settings/api-keys')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('settings/ApiKeys')
+                ->has('apiKeys', 1)
+                ->where('apiKeys.0.name', 'default')
+                ->where('apiKeys.0.key', 'chiave-default'),
+            );
+    }
+
+    public function test_admin_can_create_api_key(): void
+    {
+        $this->actingAs($this->admin)
+            ->post('/settings/api-keys', ['name' => 'sito-vetrina'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $apiKey = ApiKey::where('name', 'sito-vetrina')->first();
+        $this->assertNotNull($apiKey);
+        $this->assertSame(ApiKey::LENGTH, strlen($apiKey->key));
+    }
+
+    public function test_api_key_names_must_be_unique(): void
+    {
+        ApiKey::create(['name' => 'default', 'key' => 'chiave-default']);
+
+        $this->actingAs($this->admin)
+            ->post('/settings/api-keys', ['name' => 'default'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(1, ApiKey::count());
+    }
+
+    public function test_admin_can_rename_api_key_without_changing_the_secret(): void
+    {
+        $apiKey = ApiKey::create(['name' => 'default', 'key' => 'chiave-default']);
+
+        $this->actingAs($this->admin)
+            ->put("/settings/api-keys/{$apiKey->id}", ['name' => 'produzione'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $apiKey->refresh();
+        $this->assertSame('produzione', $apiKey->name);
+        $this->assertSame('chiave-default', $apiKey->key);
+    }
+
+    public function test_regenerating_api_key_invalidates_previous_one(): void
+    {
+        $apiKey = ApiKey::create(['name' => 'default', 'key' => 'vecchia-chiave']);
+
+        $this->actingAs($this->admin)
+            ->post("/settings/api-keys/{$apiKey->id}/regenerate")
             ->assertRedirect();
 
-        Setting::flushResolved();
-
-        $newKey = Setting::get('api_key');
-        $this->assertNotSame('vecchia-chiave', $newKey);
-        $this->assertSame(48, strlen($newKey));
+        $apiKey->refresh();
+        $this->assertNotSame('vecchia-chiave', $apiKey->key);
+        $this->assertSame(ApiKey::LENGTH, strlen($apiKey->key));
 
         // La vecchia chiave non è più valida sull'API.
         Setting::set('mailer_enabled', '1');
 
         $this->postJson('/api/send', [], ['X-API-KEY' => 'vecchia-chiave'])
+            ->assertStatus(401);
+    }
+
+    public function test_deleting_api_key_invalidates_it(): void
+    {
+        ApiKey::create(['name' => 'default', 'key' => 'chiave-default']);
+        $revoked = ApiKey::create(['name' => 'sito-vetrina', 'key' => 'chiave-revocata']);
+
+        $this->actingAs($this->admin)
+            ->delete("/settings/api-keys/{$revoked->id}")
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($revoked->fresh());
+
+        Setting::set('mailer_enabled', '1');
+
+        $this->postJson('/api/send', [], ['X-API-KEY' => 'chiave-revocata'])
             ->assertStatus(401);
     }
 }

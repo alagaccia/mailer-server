@@ -30,7 +30,6 @@ class SmtpController extends Controller
                 'reply_to' => Setting::get('smtp_reply_to') ?? '',
                 'password_set' => (bool) Setting::get('smtp_password'),
             ],
-            'apiKey' => Setting::get('api_key'),
         ]);
     }
 

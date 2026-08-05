@@ -25,7 +25,7 @@ Configura il virtual host con **document root su `public/`**, poi apri l'applica
 3. **SMTP** — parametri di invio (con test di connessione facoltativo)
 4. **Composer** — passo facoltativo: se Composer non è disponibile sul server, il wizard può scaricare `composer.phar` nella radice del progetto (download da `getcomposer.org` con verifica SHA-256, `chmod 0755` e riga in `.gitignore`, quindi non viene versionato). Da lì si usa con `php composer.phar <comando>`.
 
-Al termine viene generata automaticamente la **chiave API**, mostrata una sola volta a schermo (resta comunque visibile agli admin in *Impostazioni*). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
+Al termine viene generata automaticamente la prima **chiave API** (di nome `default`), mostrata a schermo (resta comunque visibile agli admin in *Impostazioni → Chiavi API*, dove se ne possono creare altre). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
 
 > Non eseguire `php artisan config:cache` prima dell'installazione: la configurazione cachata ignorerebbe il `.env` scritto dal wizard.
 
@@ -34,17 +34,10 @@ Al termine viene generata automaticamente la **chiave API**, mostrata una sola v
 Per riportare l'app allo stato "non installato" e rivedere il wizard da capo:
 
 ```bash
-rm -f storage/app/installed.json
+php artisan app:uninstall
 ```
 
-Questo basta a riaprire `/install`: il wizard sovrascrive utente admin e impostazioni esistenti (`updateOrCreate`), quindi non è strettamente necessario toccare il database. Per una prova pulita, senza le vecchie email/utenti in coda, ricrea anche il database prima di reinstallare:
-
-```bash
-mysql -u <utente> -p -e "DROP DATABASE IF EXISTS <nome_db>; CREATE DATABASE <nome_db> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-rm -f storage/app/installed.json
-```
-
-Poi apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 4 step.
+Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; usa `--force` per saltarla). Da lì apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 4 step. Il wizard esegue `migrate:fresh`, quindi il database viene ricreato da zero automaticamente: non serve droppare le tabelle a mano.
 
 > ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
 
@@ -62,7 +55,7 @@ In locale: `php artisan schedule:work`.
 
 ### `POST /api/send`
 
-Autenticazione tramite header **`X-API-KEY`** (chiave visibile/rigenerabile dagli admin in *Impostazioni → Chiave API*).
+Autenticazione tramite header **`X-API-KEY`** oppure **Bearer token** (`Authorization: Bearer <chiave>`). È valida **qualunque** chiave presente in *Impostazioni → Chiavi API*, dove gli admin possono crearne di nuove, rinominarle, rigenerarle o eliminarle (una per integrazione, così si revoca solo quella che serve).
 
 ```bash
 curl -X POST https://esempio.it/api/send \
@@ -77,6 +70,15 @@ curl -X POST https://esempio.it/api/send \
       {"filename": "doc.pdf", "content": "<base64>", "mime": "application/pdf"}
     ]
   }'
+```
+
+In alternativa, tramite Bearer token:
+
+```bash
+curl -X POST https://esempio.it/api/send \
+  -H "Authorization: Bearer <chiave>" \
+  -H "Content-Type: application/json" \
+  -d '{"to": ["utente@dominio.it"], "subject": "Benvenuto", "body": "<h1>Ciao!</h1>"}'
 ```
 
 | Campo | Tipo | Note |
@@ -100,7 +102,8 @@ Risposte principali (contratto identico alla vecchia app):
 ## Dashboard
 
 - **`/dashboard`** — statistiche globali, filtri (destinatario, oggetto, intervallo date), log invii paginato, anteprima email con download allegati, re-invio manuale, pulsante *Ferma/Riattiva Invio Email*.
-- **`/settings/smtp`** *(solo admin)* — configurazione SMTP (test connessione + email di prova) e chiave API (copia/rigenerazione).
+- **`/settings/smtp`** *(solo admin)* — configurazione SMTP (test connessione + email di prova).
+- **`/settings/api-keys`** *(solo admin)* — elenco chiavi API: copia, creazione, rinomina, rigenerazione, eliminazione.
 - **`/users`** *(solo admin)* — CRUD utenti con flag amministratore. Protezioni: niente auto-eliminazione, deve sempre esistere almeno un admin.
 - **`/settings/profile`**, **`/settings/security`** — profilo e cambio password personale.
 
@@ -108,7 +111,8 @@ La registrazione pubblica è disabilitata: gli utenti vengono creati dall'instal
 
 ## Note tecniche
 
-- **Impostazioni** in tabella `settings`: `api_key` e `smtp_password` sono cifrate con `APP_KEY` (ruotare `APP_KEY` le invalida: reinserire la password SMTP e rigenerare la chiave API).
+- **Impostazioni** in tabella `settings`: `smtp_password` è cifrata con `APP_KEY`.
+- **Chiavi API** in tabella `api_keys` (`name` univoco, `key`, timestamps): anche i segreti sono cifrati con `APP_KEY` — servono in chiaro nel pannello, quindi la cifratura è reversibile e il confronto in fase di autenticazione avviene riga per riga. Ruotare `APP_KEY` invalida sia la password SMTP sia le chiavi: vanno reinserita l'una e rigenerate le altre.
 - **Coda**: tabella `emails` (`pending → sending → sent|failed`), claim atomico con lock, batch da 50, sweep automatico delle righe `sending` bloccate da più di 10 minuti. Nessun retry automatico: le email fallite si re-inviano dalla dashboard.
 - **Kill switch** (`mailer_enabled`): blocca sia l'API sia il worker della coda.
 - Test: `php artisan test` · Lint: `vendor/bin/pint` · Frontend: `npm run lint`, `npm run types:check`.

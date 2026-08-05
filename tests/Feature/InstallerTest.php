@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Support\InstallState;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class InstallerTest extends TestCase
@@ -71,6 +73,46 @@ class InstallerTest extends TestCase
             ->assertJsonValidationErrors(['composer']);
 
         $this->assertFileDoesNotExist($this->composerPharPath);
+    }
+
+    public function test_completion_screen_survives_a_refresh_and_can_be_dismissed(): void
+    {
+        $token = InstallState::rememberCompletion('chiave-di-prova');
+
+        // L'installer è già chiuso, ma la schermata finale resta raggiungibile.
+        $this->get('/install')->assertNotFound();
+
+        $this->get('/install/complete?token='.$token)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('installer/Complete')
+                ->where('apiKey', 'chiave-di-prova'));
+
+        // Un refresh continua a mostrare la stessa chiave.
+        $this->get('/install/complete?token='.$token)->assertOk();
+
+        $this->postJson('/install/complete/dismiss', ['token' => $token])
+            ->assertOk()
+            ->assertExactJson(['ok' => true]);
+
+        $this->get('/install/complete?token='.$token)->assertRedirect('/login');
+    }
+
+    public function test_completion_screen_requires_a_valid_token(): void
+    {
+        InstallState::rememberCompletion('chiave-di-prova');
+
+        $this->get('/install/complete')->assertRedirect('/login');
+        $this->get('/install/complete?token=sbagliato')->assertRedirect('/login');
+    }
+
+    public function test_completion_screen_expires(): void
+    {
+        $token = InstallState::rememberCompletion('chiave-di-prova');
+
+        $this->travel(InstallState::COMPLETION_TTL_MINUTES + 1)->minutes();
+
+        $this->get('/install/complete?token='.$token)->assertRedirect('/login');
     }
 
     public function test_validate_admin_step_validates_input(): void
