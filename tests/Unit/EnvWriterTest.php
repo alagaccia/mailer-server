@@ -35,14 +35,22 @@ class EnvWriterTest extends TestCase
         $this->assertSame(1, substr_count($content, 'DB_CONNECTION='));
     }
 
-    public function test_missing_keys_are_appended_without_touching_comments(): void
+    public function test_commented_placeholder_keys_are_uncommented_and_replaced(): void
     {
         EnvWriter::write(['DB_HOST' => 'localhost'], $this->path);
 
         $content = file_get_contents($this->path);
 
-        $this->assertStringContainsString("# DB_HOST=127.0.0.1\n", $content);
+        $this->assertStringNotContainsString('# DB_HOST=', $content);
         $this->assertStringContainsString("DB_HOST=localhost\n", $content);
+        $this->assertSame(1, substr_count($content, 'DB_HOST='));
+    }
+
+    public function test_missing_keys_are_appended(): void
+    {
+        EnvWriter::write(['DB_PORT' => '3306'], $this->path);
+
+        $this->assertStringContainsString("DB_PORT=3306\n", file_get_contents($this->path));
     }
 
     public function test_values_with_special_characters_are_quoted(): void

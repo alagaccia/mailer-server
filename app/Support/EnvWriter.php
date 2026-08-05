@@ -23,10 +23,13 @@ class EnvWriter
 
         foreach ($values as $key => $value) {
             $line = $key.'='.static::formatValue($value);
-            $pattern = '/^'.preg_quote($key, '/').'=.*$/m';
+
+            // Sostituisce anche le righe commentate (es. "# DB_HOST=..."),
+            // così i placeholder dello scaffold non restano come doppioni.
+            $pattern = '/^[ \t]*#?[ \t]*'.preg_quote($key, '/').'=.*$/m';
 
             if (preg_match($pattern, $content)) {
-                $content = (string) preg_replace_callback($pattern, fn (): string => $line, $content);
+                $content = (string) preg_replace($pattern, $line, $content, 1);
             } else {
                 $content = rtrim($content, "\n")."\n".$line."\n";
             }
