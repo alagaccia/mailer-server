@@ -31,6 +31,16 @@ class ApiKeyController extends Controller
         ]);
     }
 
+    /**
+     * Documentazione dell'endpoint POST /api/send (solo admin).
+     */
+    public function docs(): Response
+    {
+        return Inertia::render('settings/ApiDocs', [
+            'endpoint' => url('/api/send'),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate($this->rules());

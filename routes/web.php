@@ -40,6 +40,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('settings/smtp/test', [SmtpController::class, 'test'])->name('smtp.test');
         Route::post('settings/smtp/test-email', [SmtpController::class, 'sendTest'])->name('smtp.send-test');
         Route::get('settings/api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
+        Route::get('settings/api-keys/docs', [ApiKeyController::class, 'docs'])->name('api-keys.docs');
         Route::post('settings/api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
         Route::put('settings/api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
         Route::post('settings/api-keys/{apiKey}/regenerate', [ApiKeyController::class, 'regenerate'])->name('api-keys.regenerate');

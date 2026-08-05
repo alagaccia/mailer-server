@@ -30,7 +30,7 @@ const user = computed(() => page.props.auth.user);
                     id="name"
                     type="text"
                     name="name"
-                    :default-value="user?.name"
+                    :defaultValue="user?.name"
                     required
                     autocomplete="name"
                     class="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 transition focus:border-blue-500 focus:outline-none"
@@ -50,7 +50,7 @@ const user = computed(() => page.props.auth.user);
                     id="email"
                     type="email"
                     name="email"
-                    :default-value="user?.email"
+                    :defaultValue="user?.email"
                     required
                     autocomplete="username"
                     class="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 transition focus:border-blue-500 focus:outline-none"

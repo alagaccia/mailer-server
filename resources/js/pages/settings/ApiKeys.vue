@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import ConfirmDialog from '@/components/bridge/ConfirmDialog.vue';
 import CopyField from '@/components/bridge/CopyField.vue';
@@ -112,13 +112,21 @@ const labelClass = 'mb-2 block text-xs font-bold text-gray-500 uppercase';
                     >. Qualunque chiave dell'elenco è valida.
                 </p>
             </div>
-            <button
-                type="button"
-                class="cursor-pointer rounded-lg border border-blue-500 bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
-                @click="openCreate"
-            >
-                + Nuova Chiave
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <Link
+                    href="/settings/api-keys/docs"
+                    class="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                >
+                    Documentazione API
+                </Link>
+                <button
+                    type="button"
+                    class="cursor-pointer rounded-lg border border-blue-500 bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                    @click="openCreate"
+                >
+                    + Nuova Chiave
+                </button>
+            </div>
         </div>
 
         <p
