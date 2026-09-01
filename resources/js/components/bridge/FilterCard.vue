@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { emailStatusLabel } from '@/lib/email-status';
 
 export type EmailFilters = {
     filter_recipient: string;
@@ -18,13 +19,6 @@ const props = withDefaults(
         statuses: () => ['pending', 'sending', 'sent', 'failed'],
     },
 );
-
-const statusLabels: Record<string, string> = {
-    pending: 'In coda',
-    sending: 'In invio',
-    sent: 'Inviata',
-    failed: 'Fallita',
-};
 
 const emit = defineEmits<{
     search: [filters: EmailFilters];
@@ -127,7 +121,7 @@ function reset(): void {
                             :key="status"
                             :value="status"
                         >
-                            {{ statusLabels[status] ?? status }}
+                            {{ emailStatusLabel(status) }}
                         </option>
                     </select>
                 </div>
