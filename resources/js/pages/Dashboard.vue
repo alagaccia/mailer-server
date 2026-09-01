@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import ConfirmDialog from '@/components/bridge/ConfirmDialog.vue';
 import EmailPreviewModal from '@/components/bridge/EmailPreviewModal.vue';
@@ -9,7 +9,7 @@ import type { EmailFilters } from '@/components/bridge/FilterCard.vue';
 import PaginationBar from '@/components/bridge/PaginationBar.vue';
 import StatCard from '@/components/bridge/StatCard.vue';
 import StatusBadge from '@/components/bridge/StatusBadge.vue';
-import { getJson, postJson } from '@/lib/http';
+import { deleteJson, getJson, postJson } from '@/lib/http';
 import type {
     EmailDetail,
     EmailRow,
@@ -21,12 +21,14 @@ const props = defineProps<{
     stats: EmailStats;
     emails: Paginator<EmailRow>;
     filters: EmailFilters;
+    statuses: string[];
 }>();
 
 const hasActiveFilters = computed(() =>
     Boolean(
         props.filters.filter_recipient ||
         props.filters.filter_subject ||
+        props.filters.filter_status ||
         props.filters.filter_date_from ||
         props.filters.filter_date_to,
     ),
@@ -41,6 +43,10 @@ function visit(filters: EmailFilters, page = 1): void {
 
     if (filters.filter_subject) {
         query.filter_subject = filters.filter_subject;
+    }
+
+    if (filters.filter_status) {
+        query.filter_status = filters.filter_status;
     }
 
     if (filters.filter_date_from) {
@@ -69,6 +75,7 @@ function resetFilters(): void {
     visit({
         filter_recipient: '',
         filter_subject: '',
+        filter_status: '',
         filter_date_from: '',
         filter_date_to: '',
     });
@@ -113,6 +120,115 @@ async function confirmSend(): Promise<void> {
     } finally {
         sending.value = sending.value.filter((id) => id !== email.id);
     }
+}
+
+// --- Selezione multipla ------------------------------------------------------
+
+const selected = ref<number[]>([]);
+
+// La selezione vale per la pagina corrente: quando cambiano i risultati
+// (filtro, pagina, ricarica) si scartano gli id non più visibili.
+watch(
+    () => props.emails.data,
+    (rows) => {
+        const visible = new Set(rows.map((row) => row.id));
+        selected.value = selected.value.filter((id) => visible.has(id));
+    },
+);
+
+const allSelected = computed(
+    () =>
+        props.emails.data.length > 0 &&
+        selected.value.length === props.emails.data.length,
+);
+
+function toggleAll(): void {
+    selected.value = allSelected.value
+        ? []
+        : props.emails.data.map((email) => email.id);
+}
+
+// --- Eliminazione ------------------------------------------------------------
+
+const deleting = ref(false);
+const deleteTarget = ref<EmailRow | null>(null);
+const askBulkDelete = ref(false);
+
+function askDelete(email: EmailRow): void {
+    deleteTarget.value = email;
+}
+
+/**
+ * Dopo un'eliminazione: se la pagina corrente è rimasta vuota si torna
+ * indietro di una, altrimenti basta ricaricare elenco e statistiche.
+ */
+function refreshAfterDelete(removed: number): void {
+    if (removed >= props.emails.data.length && props.emails.current_page > 1) {
+        goToPage(props.emails.current_page - 1);
+
+        return;
+    }
+
+    router.reload({ only: ['emails', 'stats'] });
+}
+
+async function runDelete(
+    url: string,
+    body: unknown,
+    removed: number,
+    successMessage: string,
+): Promise<void> {
+    if (deleting.value) {
+        return;
+    }
+
+    deleting.value = true;
+
+    try {
+        const { ok, data } = await deleteJson(url, body);
+
+        if (ok) {
+            toast.success(successMessage);
+            selected.value = [];
+            refreshAfterDelete(removed);
+        } else {
+            toast.error(data.error ?? 'Eliminazione non riuscita.');
+        }
+    } catch (error) {
+        toast.error(
+            `Errore di rete: ${error instanceof Error ? error.message : String(error)}`,
+        );
+    } finally {
+        deleting.value = false;
+    }
+}
+
+async function confirmDelete(): Promise<void> {
+    const email = deleteTarget.value;
+    deleteTarget.value = null;
+
+    if (!email) {
+        return;
+    }
+
+    await runDelete(`/emails/${email.id}`, undefined, 1, 'Email eliminata.');
+}
+
+async function confirmBulkDelete(): Promise<void> {
+    askBulkDelete.value = false;
+
+    const ids = [...selected.value];
+
+    if (ids.length === 0) {
+        return;
+    }
+
+    await runDelete(
+        '/emails',
+        { ids },
+        ids.length,
+        `${ids.length} email eliminate.`,
+    );
 }
 
 // --- Anteprima ---------------------------------------------------------------
@@ -164,7 +280,12 @@ async function openModal(email: EmailRow): Promise<void> {
         />
     </div>
 
-    <FilterCard :filters="filters" @search="search" @reset="resetFilters" />
+    <FilterCard
+        :filters="filters"
+        :statuses="statuses"
+        @search="search"
+        @reset="resetFilters"
+    />
 
     <div
         class="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900 shadow-2xl"
@@ -189,12 +310,57 @@ async function openModal(email: EmailRow): Promise<void> {
             </p>
         </div>
 
+        <div
+            v-if="selected.length > 0"
+            class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-red-500/5 px-6 py-3"
+        >
+            <span class="text-sm text-gray-300">
+                {{ selected.length }}
+                {{
+                    selected.length === 1
+                        ? 'email selezionata'
+                        : 'email selezionate'
+                }}
+            </span>
+
+            <div class="flex gap-2">
+                <button
+                    type="button"
+                    class="cursor-pointer rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                    @click="selected = []"
+                >
+                    Deseleziona
+                </button>
+                <button
+                    type="button"
+                    :disabled="deleting"
+                    class="cursor-pointer rounded-lg border border-red-500/30 bg-red-600/20 px-3 py-1.5 text-xs font-bold text-red-400 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="askBulkDelete = true"
+                >
+                    {{ deleting ? 'Eliminazione...' : 'Elimina selezionate' }}
+                </button>
+            </div>
+        </div>
+
         <div class="overflow-x-auto">
             <table class="w-full border-collapse text-left">
                 <thead>
                     <tr
                         class="border-b border-gray-800 text-[10px] tracking-widest text-gray-500 uppercase"
                     >
+                        <th class="w-10 px-6 py-4">
+                            <input
+                                type="checkbox"
+                                aria-label="Seleziona tutte le email della pagina"
+                                class="h-4 w-4 cursor-pointer rounded border-gray-700 bg-gray-800 accent-blue-600"
+                                :checked="allSelected"
+                                :indeterminate="
+                                    selected.length > 0 && !allSelected
+                                "
+                                :disabled="emails.data.length === 0"
+                                @change="toggleAll"
+                            />
+                        </th>
                         <th class="px-6 py-4 font-bold">ID</th>
                         <th class="px-6 py-4 font-bold">Destinatario</th>
                         <th class="px-6 py-4 font-bold">Oggetto</th>
@@ -211,7 +377,19 @@ async function openModal(email: EmailRow): Promise<void> {
                         v-for="email in emails.data"
                         :key="email.id"
                         class="transition hover:bg-white/[0.02]"
+                        :class="{
+                            'bg-blue-500/5': selected.includes(email.id),
+                        }"
                     >
+                        <td class="px-6 py-4">
+                            <input
+                                v-model="selected"
+                                type="checkbox"
+                                :value="email.id"
+                                :aria-label="`Seleziona l'email #${email.id}`"
+                                class="h-4 w-4 cursor-pointer rounded border-gray-700 bg-gray-800 accent-blue-600"
+                            />
+                        </td>
                         <td class="px-6 py-4 font-mono text-gray-500">
                             #{{ email.id }}
                         </td>
@@ -263,12 +441,20 @@ async function openModal(email: EmailRow): Promise<void> {
                             >
                                 Visualizza
                             </button>
+                            <button
+                                type="button"
+                                :disabled="deleting"
+                                class="cursor-pointer rounded-lg border border-red-500/30 bg-red-600/20 px-3 py-1 text-xs text-red-400 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                @click="askDelete(email)"
+                            >
+                                Elimina
+                            </button>
                         </td>
                     </tr>
 
                     <tr v-if="emails.data.length === 0">
                         <td
-                            colspan="7"
+                            colspan="8"
                             class="px-6 py-10 text-center text-gray-600 italic"
                         >
                             Nessun dato presente in coda.
@@ -292,6 +478,26 @@ async function openModal(email: EmailRow): Promise<void> {
         :show="showModal"
         :email="current"
         @close="showModal = false"
+    />
+
+    <ConfirmDialog
+        :show="deleteTarget !== null"
+        title="Elimina email"
+        :message="`Eliminare definitivamente l'email #${deleteTarget?.id} a ${deleteTarget?.recipient}?`"
+        confirm-label="Elimina"
+        danger
+        @confirm="confirmDelete"
+        @cancel="deleteTarget = null"
+    />
+
+    <ConfirmDialog
+        :show="askBulkDelete"
+        title="Elimina email selezionate"
+        :message="`Eliminare definitivamente ${selected.length} email? L'operazione non è reversibile.`"
+        confirm-label="Elimina"
+        danger
+        @confirm="confirmBulkDelete"
+        @cancel="askBulkDelete = false"
     />
 
     <ConfirmDialog

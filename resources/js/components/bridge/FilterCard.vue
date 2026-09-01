@@ -4,13 +4,27 @@ import { reactive, watch } from 'vue';
 export type EmailFilters = {
     filter_recipient: string;
     filter_subject: string;
+    filter_status: string;
     filter_date_from: string;
     filter_date_to: string;
 };
 
-const props = defineProps<{
-    filters: EmailFilters;
-}>();
+const props = withDefaults(
+    defineProps<{
+        filters: EmailFilters;
+        statuses?: string[];
+    }>(),
+    {
+        statuses: () => ['pending', 'sending', 'sent', 'failed'],
+    },
+);
+
+const statusLabels: Record<string, string> = {
+    pending: 'In coda',
+    sending: 'In invio',
+    sent: 'Inviata',
+    failed: 'Fallita',
+};
 
 const emit = defineEmits<{
     search: [filters: EmailFilters];
@@ -33,6 +47,7 @@ function submit(): void {
 function reset(): void {
     local.filter_recipient = '';
     local.filter_subject = '';
+    local.filter_status = '';
     local.filter_date_from = '';
     local.filter_date_to = '';
     emit('reset');
@@ -59,7 +74,9 @@ function reset(): void {
         </h2>
 
         <form @submit.prevent="submit">
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div
+                class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            >
                 <div>
                     <label
                         class="mb-2 block text-xs font-bold text-gray-500 uppercase"
@@ -90,6 +107,29 @@ function reset(): void {
                         placeholder="es: Benvenuto"
                         class="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 transition placeholder:text-gray-600 focus:border-blue-500 focus:outline-none"
                     />
+                </div>
+
+                <div>
+                    <label
+                        class="mb-2 block text-xs font-bold text-gray-500 uppercase"
+                        for="filter_status"
+                    >
+                        Stato
+                    </label>
+                    <select
+                        id="filter_status"
+                        v-model="local.filter_status"
+                        class="w-full cursor-pointer rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 transition focus:border-blue-500 focus:outline-none"
+                    >
+                        <option value="">Tutti</option>
+                        <option
+                            v-for="status in statuses"
+                            :key="status"
+                            :value="status"
+                        >
+                            {{ statusLabels[status] ?? status }}
+                        </option>
+                    </select>
                 </div>
 
                 <div>

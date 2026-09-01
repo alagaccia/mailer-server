@@ -17,6 +17,7 @@ class DashboardController extends Controller
         $filters = [
             'recipient' => trim((string) $request->query('filter_recipient', '')) ?: null,
             'subject' => trim((string) $request->query('filter_subject', '')) ?: null,
+            'status' => $this->validStatus($request->query('filter_status')),
             'date_from' => $this->validDate($request->query('filter_date_from')),
             'date_to' => $this->validDate($request->query('filter_date_to')),
         ];
@@ -51,9 +52,11 @@ class DashboardController extends Controller
                 'total' => (int) ($stats->total ?? 0),
             ],
             'emails' => $emails,
+            'statuses' => Email::STATUSES,
             'filters' => [
                 'filter_recipient' => $filters['recipient'] ?? '',
                 'filter_subject' => $filters['subject'] ?? '',
+                'filter_status' => $filters['status'] ?? '',
                 'filter_date_from' => $filters['date_from'] ?? '',
                 'filter_date_to' => $filters['date_to'] ?? '',
             ],
@@ -63,5 +66,14 @@ class DashboardController extends Controller
     protected function validDate(mixed $value): ?string
     {
         return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : null;
+    }
+
+    /**
+     * Il filtro di stato accetta solo gli stati noti: qualsiasi altro valore
+     * viene ignorato invece di produrre un elenco vuoto.
+     */
+    protected function validStatus(mixed $value): ?string
+    {
+        return is_string($value) && in_array($value, Email::STATUSES, true) ? $value : null;
     }
 }

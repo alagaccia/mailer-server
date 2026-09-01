@@ -36,6 +36,10 @@ class EmailActionsTest extends TestCase
 
         $this->get("/emails/{$email->id}")->assertRedirect('/login');
         $this->post("/emails/{$email->id}/send")->assertRedirect('/login');
+        $this->delete("/emails/{$email->id}")->assertRedirect('/login');
+        $this->delete('/emails', ['ids' => [$email->id]])->assertRedirect('/login');
+
+        $this->assertDatabaseCount('emails', 1);
     }
 
     public function test_show_returns_email_detail(): void
@@ -153,5 +157,77 @@ class EmailActionsTest extends TestCase
                 ->where('emails.total', 1)
                 ->where('filters.filter_subject', 'Benvenuto'),
             );
+    }
+
+    public function test_dashboard_filters_by_status(): void
+    {
+        Email::create(['recipient' => 'a@b.it', 'subject' => 'S', 'body' => 'B', 'status' => Email::STATUS_SENT]);
+        Email::create(['recipient' => 'c@d.it', 'subject' => 'S', 'body' => 'B', 'status' => Email::STATUS_FAILED]);
+        Email::create(['recipient' => 'e@f.it', 'subject' => 'S', 'body' => 'B']);
+
+        $this->actingAs($this->user)
+            ->get('/dashboard?filter_status=failed')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('emails.total', 1)
+                ->where('emails.data.0.recipient', 'c@d.it')
+                ->where('filters.filter_status', 'failed'),
+            );
+    }
+
+    public function test_dashboard_ignores_an_unknown_status_filter(): void
+    {
+        Email::create(['recipient' => 'a@b.it', 'subject' => 'S', 'body' => 'B']);
+
+        $this->actingAs($this->user)
+            ->get('/dashboard?filter_status=banana')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('emails.total', 1)
+                ->where('filters.filter_status', ''),
+            );
+    }
+
+    public function test_email_can_be_deleted(): void
+    {
+        $email = Email::create(['recipient' => 'a@b.it', 'subject' => 'S', 'body' => 'B']);
+
+        $this->actingAs($this->user)
+            ->deleteJson("/emails/{$email->id}")
+            ->assertOk()
+            ->assertExactJson(['message' => 'Email deleted', 'deleted' => 1]);
+
+        $this->assertDatabaseMissing('emails', ['id' => $email->id]);
+    }
+
+    public function test_delete_returns_404_for_missing_email(): void
+    {
+        $this->actingAs($this->user)
+            ->deleteJson('/emails/999')
+            ->assertNotFound()
+            ->assertExactJson(['error' => 'Email not found']);
+    }
+
+    public function test_emails_can_be_deleted_in_bulk(): void
+    {
+        $first = Email::create(['recipient' => 'a@b.it', 'subject' => 'S', 'body' => 'B']);
+        $second = Email::create(['recipient' => 'c@d.it', 'subject' => 'S', 'body' => 'B']);
+        $kept = Email::create(['recipient' => 'e@f.it', 'subject' => 'S', 'body' => 'B']);
+
+        $this->actingAs($this->user)
+            ->deleteJson('/emails', ['ids' => [$first->id, $second->id]])
+            ->assertOk()
+            ->assertExactJson(['message' => 'Emails deleted', 'deleted' => 2]);
+
+        $this->assertDatabaseCount('emails', 1);
+        $this->assertDatabaseHas('emails', ['id' => $kept->id]);
+    }
+
+    public function test_bulk_delete_requires_ids(): void
+    {
+        $this->actingAs($this->user)
+            ->deleteJson('/emails', ['ids' => []])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('ids');
     }
 }

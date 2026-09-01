@@ -41,6 +41,8 @@ export type Paginator<T> = {
     to: number | null;
 };
 
+export type EmailStatus = 'pending' | 'sending' | 'sent' | 'failed';
+
 export type EmailStats = {
     pending: number;
     sent: number;

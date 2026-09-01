@@ -36,6 +36,18 @@ class Email extends Model
     public const STATUS_FAILED = 'failed';
 
     /**
+     * Stati ammessi, usati per validare il filtro della dashboard.
+     *
+     * @var list<string>
+     */
+    public const STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_SENDING,
+        self::STATUS_SENT,
+        self::STATUS_FAILED,
+    ];
+
+    /**
      * Ogni email ha un uuid: se non viene fornito ne viene generato uno.
      */
     protected static function booted(): void
@@ -79,6 +91,7 @@ class Email extends Model
         return $query
             ->when($filters['recipient'] ?? null, fn (Builder $q, string $v) => $q->where('recipient', 'like', "%{$v}%"))
             ->when($filters['subject'] ?? null, fn (Builder $q, string $v) => $q->where('subject', 'like', "%{$v}%"))
+            ->when($filters['status'] ?? null, fn (Builder $q, string $v) => $q->where('status', $v))
             ->when($filters['date_from'] ?? null, fn (Builder $q, string $v) => $q->where('created_at', '>=', $v.' 00:00:00'))
             ->when($filters['date_to'] ?? null, fn (Builder $q, string $v) => $q->where('created_at', '<=', $v.' 23:59:59'));
     }

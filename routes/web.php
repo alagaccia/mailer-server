@@ -32,6 +32,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('emails/{id}', [EmailController::class, 'show'])->whereNumber('id')->name('emails.show');
     Route::post('emails/{id}/send', [EmailController::class, 'send'])->whereNumber('id')->name('emails.send');
+    Route::delete('emails', [EmailController::class, 'destroyMany'])->name('emails.destroy-many');
+    Route::delete('emails/{id}', [EmailController::class, 'destroy'])->whereNumber('id')->name('emails.destroy');
 
     Route::post('mailer/toggle', MailerToggleController::class)->name('mailer.toggle');
 

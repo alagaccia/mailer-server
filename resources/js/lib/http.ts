@@ -61,6 +61,13 @@ export function postJson<T = Record<string, unknown>>(
     return requestJson<T>(url, { method: 'POST', body });
 }
 
+export function deleteJson<T = Record<string, unknown>>(
+    url: string,
+    body?: unknown,
+): Promise<JsonResult<T>> {
+    return requestJson<T>(url, { method: 'DELETE', body });
+}
+
 /**
  * Primo messaggio d'errore da una risposta di validazione 422.
  */
