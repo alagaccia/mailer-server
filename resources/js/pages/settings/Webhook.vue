@@ -137,8 +137,25 @@ const preClass =
             </p>
 
             <form @submit.prevent="save">
+                <p class="mb-6 text-xs text-gray-500">
+                    Con il pacchetto
+                    <code class="font-mono text-gray-400"
+                        >alagaccia/mailer-transport</code
+                    >
+                    (1.2+) questi valori arrivano con ogni invio e prendono il
+                    posto di quelli qui sotto: si impostano nel
+                    <code class="font-mono text-gray-400">.env</code>
+                    dell'applicazione con
+                    <code class="font-mono text-gray-400"
+                        >php artisan mailer-transport:install</code
+                    >. Questi valori di default servono solo a chi chiama l'API
+                    senza il pacchetto.
+                </p>
+
                 <div>
-                    <label :class="labelClass" for="url">URL del webhook</label>
+                    <label :class="labelClass" for="url"
+                        >URL pubblico del webhook</label
+                    >
                     <input
                         id="url"
                         v-model="form.url"
@@ -149,11 +166,17 @@ const preClass =
                     <p v-if="form.errors.url" class="mt-2 text-xs text-red-400">
                         {{ form.errors.url }}
                     </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Nell'applicazione:
+                        <code class="font-mono text-gray-400"
+                            >CUSTOM_MAILER_WEBHOOK_URL</code
+                        >
+                    </p>
                 </div>
 
                 <div class="mt-6">
                     <label :class="labelClass" for="token"
-                        >Token di autenticazione (opzionale)</label
+                        >Token di autenticazione aggiuntivo (opzionale)</label
                     >
                     <input
                         id="token"
@@ -177,11 +200,18 @@ const preClass =
                             >Authorization: Bearer</code
                         >, così puoi validarlo nel modo che preferisci.
                     </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Nell'applicazione:
+                        <code class="font-mono text-gray-400"
+                            >CUSTOM_MAILER_WEBHOOK_TOKEN</code
+                        >
+                    </p>
                 </div>
 
                 <div class="mt-6">
                     <label :class="labelClass" for="secret"
-                        >Chiave per la firma HMAC (opzionale)</label
+                        >Segreto HMAC con cui firmare le notifiche
+                        (opzionale)</label
                     >
                     <input
                         id="secret"
@@ -206,11 +236,17 @@ const preClass =
                         così verificare che la chiamata arrivi davvero da Mail
                         Bridge e non sia stata alterata.
                     </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Nell'applicazione:
+                        <code class="font-mono text-gray-400"
+                            >CUSTOM_MAILER_WEBHOOK_SECRET</code
+                        >
+                    </p>
                 </div>
 
                 <div class="mt-6">
                     <label :class="labelClass" for="signature_header"
-                        >Intestazione della firma (opzionale)</label
+                        >Intestazione che porta la firma (opzionale)</label
                     >
                     <input
                         id="signature_header"
@@ -236,6 +272,12 @@ const preClass =
                         <code class="font-mono text-gray-400"
                             >X-Hub-Signature-256</code
                         >.
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Nell'applicazione:
+                        <code class="font-mono text-gray-400"
+                            >CUSTOM_MAILER_WEBHOOK_SIGNATURE_HEADER</code
+                        >
                     </p>
                 </div>
 
