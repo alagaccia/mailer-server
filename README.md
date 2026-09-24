@@ -28,11 +28,14 @@ bin/install.sh
 3. esegue `composer install --no-dev --optimize-autoloader`;
 4. stampa la riga di cron già pronta con il percorso PHP corretto.
 
+È **idempotente**: al termine salva in `vendor/.install-stamp` l'impronta di `composer.lock`, e a un rilancio successivo esce in una frazione di secondo senza toccare nulla. Reinstalla da sé solo se `composer.lock` è cambiato o se `vendor/` è stato cancellato. Puoi quindi rilanciarlo a ogni deploy, o lasciarlo in un'attività pianificata, senza effetti collaterali.
+
 | Opzione | Effetto |
 |---|---|
 | `--php /percorso/php` | Forza il binario PHP (equivale alla variabile `PHP_BIN`) |
 | `--composer /percorso/composer` | Forza il binario Composer (equivale a `COMPOSER_BIN`) |
 | `--dev` | Installa anche le dipendenze di sviluppo |
+| `--force` | Reinstalla anche se l'impronta dice che è già aggiornato |
 
 Su un server dedicato puoi ovviamente fare a mano `composer install --no-dev --optimize-autoloader`: il risultato è lo stesso.
 
@@ -52,7 +55,7 @@ Se cPanel ti permette di clonare il repository dal pannello ma non hai una shell
 4. In *Git Version Control → Manage → Pull or Deploy* premi **Update from Remote** e poi **Deploy HEAD Commit**: cPanel esegue `bin/install.sh` nella cartella del clone, che installa `vendor/`.
 5. Apri il sito: parte il wizard. Poi crea il cron da *Cron Jobs* con il percorso PHP completo (es. `/usr/local/bin/ea-php85`, vedi sotto).
 
-A ogni aggiornamento basta ripetere il punto 4. Il file `.cpanel.yml` è volutamente minimo (niente commenti): il parser YAML di cPanel è più severo di quello standard.
+A ogni aggiornamento basta ripetere il punto 4: se `composer.lock` non è cambiato lo script esce subito, quindi il deploy resta veloce. Il file `.cpanel.yml` è volutamente minimo (niente commenti): il parser YAML di cPanel è più severo di quello standard.
 
 > Un 500 subito dopo il clone, con nel log `Failed opening required '.../vendor/autoload.php'`, significa solo che questo passaggio non è ancora stato fatto: manca `vendor/`, che non è versionato.
 
@@ -63,24 +66,33 @@ cPanel mostra un messaggio generico ("The system cannot deploy") senza dire qual
 - **Modifiche non committate nel clone.** Capita anche senza che tu abbia toccato nulla: alcuni hosting perdono il bit di eseguibilità dei file, e git segnala `bin/install.sh` come modificato (`mode change 100755 => 100644`). Il deploy resta bloccato finché l'albero non è pulito.
 - **La funzione di deploy è disattivata dal provider**, che espone il clone e il pull ma non l'esecuzione dei task.
 
-In entrambi i casi non serve insistere: usa l'**attività pianificata "usa e getta"** descritta qui sotto, che ottiene lo stesso risultato.
+In entrambi i casi non serve insistere: usa l'**attività pianificata** descritta qui sotto, che ottiene lo stesso risultato.
 
 ### A3. Hosting cPanel senza SSH e senza deploy (installazione via *Cron Jobs*)
 
-Se non hai shell e il pulsante di deploy non è utilizzabile, l'installazione si lancia una volta sola da *Cron Jobs*:
+Se non hai shell e il pulsante di deploy non è utilizzabile, l'installazione si lancia da *Cron Jobs*. Siccome `bin/install.sh` è idempotente, l'attività **non va rimossa**: dopo la prima esecuzione le successive escono subito senza fare nulla.
 
-1. In **cPanel → Cron Jobs** aggiungi un'attività con intervallo *Once per minute* (`* * * * *`) e comando:
+1. In **cPanel → Cron Jobs** aggiungi un'attività con questo comando (sostituisci il percorso con quello del tuo clone):
 
    ```
    /bin/bash /home/utente/subdomains/mailer/bin/install.sh >> /home/utente/install.log 2>&1
    ```
 
-2. Attendi un paio di minuti, poi apri `install.log` dal *File Manager*: l'ultima riga dice se l'installazione è andata a buon fine.
-3. **Elimina l'attività appena creata**: serviva una volta sola (rilanciarla non fa danni, ma è inutile).
-4. Verifica che esista la cartella `vendor/`, poi apri il sito: parte il wizard.
-5. Crea l'attività definitiva dello scheduler, quella descritta in [Cron](#cron-obbligatorio).
+2. Come pianificazione scegli un **istante singolo, pochi minuti nel futuro**, compilando i campi a mano invece di usare le *Common Settings*. Esempio per le 14:35 del 25 settembre:
 
-Lo stesso metodo vale per gli aggiornamenti futuri, dopo un *Update from Remote*.
+   | Minuto | Ora | Giorno | Mese | Giorno della settimana |
+   |---|---|---|---|---|
+   | `35` | `14` | `25` | `9` | `*` |
+
+   Così l'attività scatta una volta sola. Tornerà a scattare l'anno prossimo nello stesso istante, quando però non farà nulla.
+
+3. Attendi che l'orario passi, poi apri `install.log` dal *File Manager*: l'ultima riga dice se l'installazione è andata a buon fine.
+4. Verifica che esista la cartella `vendor/`, poi apri il sito: parte il wizard.
+5. Aggiungi l'attività definitiva dello scheduler, quella descritta in [Cron](#cron-obbligatorio).
+
+Per gli aggiornamenti futuri, dopo un *Update from Remote*, ti basta modificare la data dell'attività e lasciarla scattare di nuovo.
+
+> In alternativa puoi pianificarla *Once Per Minute* (`* * * * *`) e lasciarla dov'è: dopo la prima esecuzione ogni passaggio costa pochi millisecondi. È più semplice ma tiene una riga di log al minuto, quindi conviene togliere il `>> install.log` dal comando.
 
 ### B. Hosting condiviso con solo FTP (senza SSH)
 
@@ -127,7 +139,7 @@ Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; us
 
 ### Aggiornare un'installazione
 
-- **Con SSH**: `git pull`, poi `bin/install.sh` (applica eventuali cambi di `composer.lock`) e `php artisan migrate --force`. Gli asset compilati arrivano con il `pull`.
+- **Con SSH**: `git pull`, poi `bin/install.sh` e `php artisan migrate --force`. Lo script reinstalla le dipendenze solo se `composer.lock` è cambiato, altrimenti esce subito. Gli asset compilati arrivano con il `pull`.
 - **Solo FTP**: carica il nuovo zip ed estrailo sopra l'installazione esistente. Il pacchetto non contiene `.env` né `storage/`, quindi configurazione e dati restano intatti. Vale il limite sulle migrazioni descritto sopra.
 
 ### Cron (obbligatorio)

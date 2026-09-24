@@ -7,10 +7,16 @@
 # >= 8.4.1 (es. /usr/local/bin/ea-php85), scarica composer.phar se serve e
 # lancia `composer install --no-dev`.
 #
+# Lo script e' idempotente: se le dipendenze sono gia' installate e
+# composer.lock non e' cambiato, esce subito senza fare nulla. Puo' quindi
+# essere rilanciato a ogni deploy, o lasciato in un'attivita' pianificata,
+# senza effetti collaterali.
+#
 # Uso:
 #   bin/install.sh                    # rileva PHP e Composer automaticamente
 #   bin/install.sh --php /usr/local/bin/ea-php85
 #   bin/install.sh --dev              # include le dipendenze di sviluppo
+#   bin/install.sh --force            # reinstalla anche se e' gia' aggiornato
 #
 # Variabili d'ambiente equivalenti: PHP_BIN, COMPOSER_BIN.
 #
@@ -24,9 +30,15 @@ MIN_PHP_LABEL="8.4.1"
 PHP_BIN="${PHP_BIN:-}"
 COMPOSER_BIN="${COMPOSER_BIN:-}"
 DEV=0
+FORCE=0
+
+# Impronta dell'installazione riuscita: vive dentro vendor/, così sparisce
+# insieme alle dipendenze se la cartella viene cancellata.
+STAMP="$ROOT/vendor/.install-stamp"
 
 usage() {
-    sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # Stampa il blocco di commenti iniziale, shebang escluso.
+    awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
 }
 
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -40,6 +52,7 @@ while [ $# -gt 0 ]; do
         --composer)   COMPOSER_BIN="${2:-}"; shift 2 ;;
         --composer=*) COMPOSER_BIN="${1#--composer=}"; shift ;;
         --dev)        DEV=1; shift ;;
+        --force)      FORCE=1; shift ;;
         -h|--help)    usage; exit 0 ;;
         *)            usage >&2; die "opzione sconosciuta: $1" ;;
     esac
@@ -96,6 +109,33 @@ fi
 
 info "PHP: $PHP_BIN ($("$PHP_BIN" -r 'echo PHP_VERSION;'))"
 
+# --- Serve installare? -----------------------------------------------------
+
+# Identifica lo stato atteso di vendor/: dipendenze bloccate + presenza o meno
+# di quelle di sviluppo. Se combacia con l'ultima installazione riuscita non
+# c'è niente da fare.
+install_fingerprint() {
+    "$PHP_BIN" -r 'echo is_file($argv[1]) ? hash_file("sha256", $argv[1]) : "no-lock";' "$ROOT/composer.lock"
+    printf ' dev=%s\n' "$DEV"
+}
+
+if [ "$FORCE" -eq 0 ] \
+    && [ -f "$ROOT/vendor/autoload.php" ] \
+    && [ -f "$STAMP" ] \
+    && [ "$(cat "$STAMP")" = "$(install_fingerprint)" ]; then
+    info "Dipendenze già installate e aggiornate: niente da fare."
+    exit 0
+fi
+
+# Composer ha bisogno di una home scrivibile per la cache. In alcuni cron
+# $HOME non è scrivibile (o non è impostata): in quel caso la mettiamo dentro
+# storage/, che è già ignorata da git.
+if [ -z "${COMPOSER_HOME:-}" ] && ! { [ -n "${HOME:-}" ] && [ -w "${HOME:-}" ]; }; then
+    export COMPOSER_HOME="$ROOT/storage/composer"
+    mkdir -p "$COMPOSER_HOME"
+    warn "\$HOME non scrivibile: uso $COMPOSER_HOME come home di Composer"
+fi
+
 # --- Composer --------------------------------------------------------------
 
 download() {
@@ -147,6 +187,7 @@ info "Composer: $COMPOSER_BIN"
 export COMPOSER_MEMORY_LIMIT=-1
 export COMPOSER_NO_INTERACTION=1
 
+
 COMPOSER_ARGS=(install --prefer-dist --optimize-autoloader --no-progress)
 if [ "$DEV" -eq 0 ]; then
     COMPOSER_ARGS+=(--no-dev)
@@ -154,6 +195,8 @@ fi
 
 info "Installo le dipendenze PHP (${COMPOSER_ARGS[*]})"
 "$PHP_BIN" "$COMPOSER_BIN" "${COMPOSER_ARGS[@]}"
+
+install_fingerprint > "$STAMP"
 
 # Cartelle che Laravel deve poter scrivere.
 chmod -R u+rwX storage bootstrap/cache 2>/dev/null || warn "impossibile aggiornare i permessi di storage/ e bootstrap/cache"
