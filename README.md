@@ -52,9 +52,35 @@ Se cPanel ti permette di clonare il repository dal pannello ma non hai una shell
 4. In *Git Version Control → Manage → Pull or Deploy* premi **Update from Remote** e poi **Deploy HEAD Commit**: cPanel esegue `bin/install.sh` nella cartella del clone, che installa `vendor/`.
 5. Apri il sito: parte il wizard. Poi crea il cron da *Cron Jobs* con il percorso PHP completo (es. `/usr/local/bin/ea-php85`, vedi sotto).
 
-A ogni aggiornamento basta ripetere il punto 4. Il deploy richiede che il clone non abbia modifiche locali: le cartelle create dall'installazione (`vendor/`, `composer.phar`, `.env`, `storage/`) sono tutte ignorate da git, quindi non danno problemi.
+A ogni aggiornamento basta ripetere il punto 4. Il file `.cpanel.yml` è volutamente minimo (niente commenti): il parser YAML di cPanel è più severo di quello standard.
 
-> Un 500 subito dopo il clone, con nel log `Failed opening required '.../vendor/autoload.php'`, significa solo che questo passaggio non è ancora stato fatto.
+> Un 500 subito dopo il clone, con nel log `Failed opening required '.../vendor/autoload.php'`, significa solo che questo passaggio non è ancora stato fatto: manca `vendor/`, che non è versionato.
+
+#### Se il pulsante *Deploy HEAD Commit* è disabilitato
+
+cPanel mostra un messaggio generico ("The system cannot deploy") senza dire quale dei due requisiti manca. Cause tipiche, in ordine di frequenza:
+
+- **Modifiche non committate nel clone.** Capita anche senza che tu abbia toccato nulla: alcuni hosting perdono il bit di eseguibilità dei file, e git segnala `bin/install.sh` come modificato (`mode change 100755 => 100644`). Il deploy resta bloccato finché l'albero non è pulito.
+- **La funzione di deploy è disattivata dal provider**, che espone il clone e il pull ma non l'esecuzione dei task.
+
+In entrambi i casi non serve insistere: usa l'**attività pianificata "usa e getta"** descritta qui sotto, che ottiene lo stesso risultato.
+
+### A3. Hosting cPanel senza SSH e senza deploy (installazione via *Cron Jobs*)
+
+Se non hai shell e il pulsante di deploy non è utilizzabile, l'installazione si lancia una volta sola da *Cron Jobs*:
+
+1. In **cPanel → Cron Jobs** aggiungi un'attività con intervallo *Once per minute* (`* * * * *`) e comando:
+
+   ```
+   /bin/bash /home/utente/subdomains/mailer/bin/install.sh >> /home/utente/install.log 2>&1
+   ```
+
+2. Attendi un paio di minuti, poi apri `install.log` dal *File Manager*: l'ultima riga dice se l'installazione è andata a buon fine.
+3. **Elimina l'attività appena creata**: serviva una volta sola (rilanciarla non fa danni, ma è inutile).
+4. Verifica che esista la cartella `vendor/`, poi apri il sito: parte il wizard.
+5. Crea l'attività definitiva dello scheduler, quella descritta in [Cron](#cron-obbligatorio).
+
+Lo stesso metodo vale per gli aggiornamenti futuri, dopo un *Update from Remote*.
 
 ### B. Hosting condiviso con solo FTP (senza SSH)
 

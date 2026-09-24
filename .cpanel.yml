@@ -1,8 +1,4 @@
 ---
-# Deploy automatico per cPanel (Git Version Control -> "Deploy HEAD Commit").
-# cPanel esegue questi comandi nella cartella del repository dopo il pull:
-# installa/aggiorna le dipendenze PHP trovando da solo il binario PHP giusto
-# (es. /usr/local/bin/ea-php85). Vedi README, sezione "Hosting cPanel".
 deployment:
   tasks:
     - /bin/bash bin/install.sh
