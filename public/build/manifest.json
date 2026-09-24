@@ -95,7 +95,7 @@
     "isEntry": true
   },
   "resources/js/app.ts": {
-    "file": "assets/app-j9RLxW6O.js",
+    "file": "assets/app-D_AR0vyI.js",
     "name": "app",
     "src": "resources/js/app.ts",
     "isEntry": true,
@@ -177,7 +177,7 @@
     ]
   },
   "resources/js/pages/settings/ApiDocs.vue": {
-    "file": "assets/ApiDocs-CbGKtapK.js",
+    "file": "assets/ApiDocs-cljFrpJU.js",
     "name": "ApiDocs",
     "src": "resources/js/pages/settings/ApiDocs.vue",
     "isDynamicEntry": true,
@@ -228,7 +228,7 @@
     ]
   },
   "resources/js/pages/settings/Webhook.vue": {
-    "file": "assets/Webhook-eLmW3xLz.js",
+    "file": "assets/Webhook-fyVL7UNO.js",
     "name": "Webhook",
     "src": "resources/js/pages/settings/Webhook.vue",
     "isDynamicEntry": true,
