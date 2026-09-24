@@ -88,6 +88,7 @@ class InstallerController extends Controller
 
         $admin = $validated['admin'];
         $db = $validated['db'];
+        $db['prefix'] ??= '';
         $smtp = $validated['smtp'];
 
         $this->assertDatabaseConnects($db, 'db.host');
@@ -100,6 +101,7 @@ class InstallerController extends Controller
             'database.connections.mysql.database' => $db['database'],
             'database.connections.mysql.username' => $db['username'],
             'database.connections.mysql.password' => $db['password'] ?? '',
+            'database.connections.mysql.prefix' => $db['prefix'],
             'database.default' => 'mysql',
         ]);
         DB::purge('mysql');
@@ -112,7 +114,15 @@ class InstallerController extends Controller
         DB::prohibitDestructiveCommands(false);
 
         try {
-            $exitCode = Artisan::call('migrate:fresh', ['--force' => true]);
+            if ($db['prefix'] === '') {
+                $exitCode = Artisan::call('migrate:fresh', ['--force' => true]);
+            } else {
+                // `migrate:fresh` cancellerebbe tutte le tabelle del database,
+                // anche quelle di altre applicazioni: con un prefisso il DB è
+                // probabilmente condiviso, quindi azzeriamo solo le nostre.
+                $this->dropPrefixedTables($db['prefix']);
+                $exitCode = Artisan::call('migrate', ['--force' => true]);
+            }
         } catch (Throwable $e) {
             throw ValidationException::withMessages([
                 'db.host' => __('Migrazione del database fallita: :error', ['error' => $e->getMessage()]),
@@ -163,6 +173,7 @@ class InstallerController extends Controller
             'DB_DATABASE' => $db['database'],
             'DB_USERNAME' => $db['username'],
             'DB_PASSWORD' => $db['password'] ?? '',
+            'DB_PREFIX' => $db['prefix'],
         ]);
 
         // Un'eventuale configurazione cachata ignorerebbe il nuovo .env.
@@ -234,6 +245,9 @@ class InstallerController extends Controller
             'database' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255'],
             'password' => ['nullable', 'string', 'max:255'],
+            // Solo caratteri sicuri in un identificatore MySQL non quotato;
+            // il limite lascia spazio ai nomi di tabelle e indici (max 64).
+            'prefix' => ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9_]+$/'],
         ];
     }
 
@@ -252,6 +266,30 @@ class InstallerController extends Controller
             'from_address' => ['nullable', 'string', 'email', 'max:255'],
             'reply_to' => ['nullable', 'string', 'email', 'max:255'],
         ];
+    }
+
+    /**
+     * Elimina le tabelle della connessione corrente il cui nome inizia con il
+     * prefisso, lasciando intatte quelle di altre applicazioni.
+     */
+    protected function dropPrefixedTables(string $prefix): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+
+        $tables = array_values(array_filter(
+            $schema->getTableListing($schema->getCurrentSchemaListing(), schemaQualified: false),
+            fn (string $table) => str_starts_with($table, $prefix),
+        ));
+
+        if ($tables === []) {
+            return;
+        }
+
+        // I nomi restituiti includono già il prefisso: Schema::drop() lo
+        // aggiungerebbe una seconda volta, quindi si usa l'SQL della grammar.
+        $schema->withoutForeignKeyConstraints(fn () => DB::statement(
+            DB::connection()->getSchemaGrammar()->compileDropAllTables($tables),
+        ));
     }
 
     /**

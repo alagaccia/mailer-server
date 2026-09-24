@@ -36,6 +36,7 @@ const db = reactive({
     database: 'mailer_bridge',
     username: 'root',
     password: '',
+    prefix: '',
 });
 
 const smtp = reactive({
@@ -426,6 +427,32 @@ const errorClass = 'mt-2 text-xs text-red-400';
                                     :class="errorClass"
                                 >
                                     {{ err('password', 'db') }}
+                                </p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label :class="labelClass" for="db_prefix"
+                                    >Prefisso tabelle (facoltativo)</label
+                                >
+                                <input
+                                    id="db_prefix"
+                                    v-model.trim="db.prefix"
+                                    type="text"
+                                    maxlength="20"
+                                    pattern="[A-Za-z0-9_]+"
+                                    placeholder="es. mb_"
+                                    autocomplete="off"
+                                    :class="inputClass"
+                                />
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Utile se il database è condiviso con altre
+                                    applicazioni: verranno create e azzerate
+                                    solo le tabelle con questo prefisso.
+                                </p>
+                                <p
+                                    v-if="err('prefix', 'db')"
+                                    :class="errorClass"
+                                >
+                                    {{ err('prefix', 'db') }}
                                 </p>
                             </div>
                         </div>

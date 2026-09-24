@@ -118,7 +118,7 @@ Al primo avvio, prima che Laravel legga l'ambiente, l'applicazione crea da sola 
 Il wizard richiede:
 
 1. **Amministratore** — il primo utente (avrà `is_admin = true`)
-2. **Database** — credenziali MySQL (connessione verificata prima di procedere)
+2. **Database** — credenziali MySQL (connessione verificata prima di procedere) e, facoltativo, un **prefisso per le tabelle** (es. `mb_`, salvato in `DB_PREFIX`) utile se il database è condiviso con altre applicazioni
 3. **SMTP** — parametri di invio (con test di connessione facoltativo)
 
 Al termine esegue le migrazioni, scrive le credenziali del database nel `.env` e genera la prima **chiave API** (di nome `default`), mostrata a schermo (resta comunque visibile agli admin in *Impostazioni → Chiavi API*, dove se ne possono creare altre). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
@@ -133,7 +133,7 @@ Per riportare l'app allo stato "non installato" e rivedere il wizard da capo:
 php artisan app:uninstall
 ```
 
-Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; usa `--force` per saltarla). Da lì apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 3 step. Il wizard esegue `migrate:fresh`, quindi il database viene ricreato da zero automaticamente: non serve droppare le tabelle a mano.
+Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; usa `--force` per saltarla). Da lì apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 3 step. Il wizard esegue `migrate:fresh`, quindi il database viene ricreato da zero automaticamente: non serve droppare le tabelle a mano. Se è stato indicato un prefisso, invece, vengono eliminate solo le tabelle che iniziano con quel prefisso (le altre tabelle del database restano intatte) e poi si esegue `migrate`.
 
 > ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
 

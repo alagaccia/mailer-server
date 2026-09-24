@@ -97,4 +97,19 @@ class InstallerTest extends TestCase
             ->assertOk()
             ->assertExactJson(['ok' => true]);
     }
+
+    public function test_database_step_rejects_an_unsafe_table_prefix(): void
+    {
+        $this->markNotInstalled();
+
+        $this->postJson('/install/test-database', [
+            'host' => 'localhost',
+            'port' => 3306,
+            'database' => 'mailer',
+            'username' => 'root',
+            'prefix' => 'mb-; drop',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['prefix']);
+    }
 }
