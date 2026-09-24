@@ -33,12 +33,9 @@ class WebhookController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $data = $request->validate($this->rules());
+        $data = $request->validate(WebhookService::settingsRules());
 
-        Setting::set('webhook_url', ($data['url'] ?? '') !== '' ? $data['url'] : null);
-        Setting::set('webhook_token', ($data['token'] ?? '') !== '' ? $data['token'] : null);
-        Setting::set('webhook_secret', ($data['secret'] ?? '') !== '' ? $data['secret'] : null);
-        Setting::set('webhook_signature_header', trim($data['signature_header'] ?? '') !== '' ? trim($data['signature_header']) : null);
+        WebhookService::saveSettings($data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Impostazioni webhook salvate.']);
 
@@ -54,7 +51,7 @@ class WebhookController extends Controller
             'url' => ['required', 'string', 'url:http,https', 'max:2048'],
             'token' => ['nullable', 'string', 'max:1024'],
             'secret' => ['nullable', 'string', 'max:1024'],
-            'signature_header' => self::SIGNATURE_HEADER_RULES,
+            'signature_header' => WebhookService::settingsRules()['signature_header'],
         ]);
 
         $result = $webhook->test(
@@ -65,28 +62,5 @@ class WebhookController extends Controller
         );
 
         return response()->json($result === true ? ['ok' => true] : ['ok' => false, 'error' => $result]);
-    }
-
-    /**
-     * Il nome dell'intestazione deve essere un token HTTP valido.
-     *
-     * @var array<int, string>
-     */
-    protected const SIGNATURE_HEADER_RULES = ['nullable', 'string', 'max:128', 'regex:'.WebhookService::SIGNATURE_HEADER_PATTERN];
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function rules(): array
-    {
-        // URL vuoto = webhook di default disattivato.
-        // Token vuoto = chiamata senza intestazioni di autenticazione.
-        // Secret vuoto = nessuna firma HMAC allegata alla notifica.
-        return [
-            'url' => ['nullable', 'string', 'url:http,https', 'max:2048'],
-            'token' => ['nullable', 'string', 'max:1024'],
-            'secret' => ['nullable', 'string', 'max:1024'],
-            'signature_header' => self::SIGNATURE_HEADER_RULES,
-        ];
     }
 }

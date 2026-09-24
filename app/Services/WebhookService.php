@@ -30,6 +30,40 @@ class WebhookService implements WebhookNotifier
      */
     public const SIGNATURE_HEADER_PATTERN = '/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/';
 
+    /**
+     * Regole di validazione delle impostazioni del webhook di default,
+     * condivise dal pannello e dall'API.
+     *
+     * URL vuoto = webhook di default disattivato.
+     * Token vuoto = chiamata senza intestazioni di autenticazione.
+     * Secret vuoto = nessuna firma HMAC allegata alla notifica.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function settingsRules(): array
+    {
+        return [
+            'url' => ['nullable', 'string', 'url:http,https', 'max:2048'],
+            'token' => ['nullable', 'string', 'max:1024'],
+            'secret' => ['nullable', 'string', 'max:1024'],
+            'signature_header' => ['nullable', 'string', 'max:128', 'regex:'.self::SIGNATURE_HEADER_PATTERN],
+        ];
+    }
+
+    /**
+     * Salva le impostazioni del webhook di default: un campo vuoto azzera
+     * il valore corrispondente.
+     *
+     * @param  array<string, string|null>  $data
+     */
+    public static function saveSettings(array $data): void
+    {
+        Setting::set('webhook_url', ($data['url'] ?? '') !== '' ? $data['url'] : null);
+        Setting::set('webhook_token', ($data['token'] ?? '') !== '' ? $data['token'] : null);
+        Setting::set('webhook_secret', ($data['secret'] ?? '') !== '' ? $data['secret'] : null);
+        Setting::set('webhook_signature_header', trim($data['signature_header'] ?? '') !== '' ? trim($data['signature_header']) : null);
+    }
+
     public function notify(Email $email): true|string|null
     {
         $url = static::resolveUrl($email);

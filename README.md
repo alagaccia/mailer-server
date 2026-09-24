@@ -241,6 +241,17 @@ Risposte principali (contratto identico alla vecchia app):
 - `400` `{"error":"Missing fields","field":"..."}` / `{"error":"Invalid email address","email":"..."}` / `{"error":"Invalid uuid","uuid":"..."}` / `{"error":"Invalid webhook","webhook":"..."}` / `{"error":"Invalid webhook_token|webhook_secret|webhook_signature_header",...}` / `{"error":"Malformed JSON",...}`
 - `405` `{"error":"Method Not Allowed. Use POST."}`
 
+## Impostazioni del webhook via API
+
+Le stesse impostazioni di *Impostazioni → Webhook* si leggono e si scrivono anche via API, autenticandosi con una chiave API (`X-API-KEY` o Bearer). È quello che fa `php artisan mailer-transport:install` del pacchetto [alagaccia/mailer-transport](https://github.com/alagaccia/mailer-transport) quando si accetta di salvare i valori anche sul mailer.
+
+| Metodo | Percorso | Corpo | Effetto |
+|---|---|---|---|
+| `GET` | `/api/webhook` | — | impostazioni correnti (senza token e segreto) |
+| `PUT` | `/api/webhook` | `url`, `token`, `secret`, `signature_header` | sostituisce le impostazioni; un campo assente o vuoto azzera il valore |
+
+Risposta: `{"url":"https://…","has_token":true,"has_secret":true,"signature_header":"X-Signature"}`. Validazione identica al pannello (`422` con gli errori per campo).
+
 ## Webhook
 
 Ogni volta che un'email viene **elaborata** (inviata dal cron, inviata subito con `sync: true`, o re-inviata a mano dalla dashboard) il server esegue una `POST` JSON verso un webhook per comunicare l'esito:
