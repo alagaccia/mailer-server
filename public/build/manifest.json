@@ -95,7 +95,7 @@
     "isEntry": true
   },
   "resources/js/app.ts": {
-    "file": "assets/app-3zWHvVQT.js",
+    "file": "assets/app-j9RLxW6O.js",
     "name": "app",
     "src": "resources/js/app.ts",
     "isEntry": true,
@@ -164,7 +164,7 @@
     ]
   },
   "resources/js/pages/installer/Install.vue": {
-    "file": "assets/Install-D2bsyW2H.js",
+    "file": "assets/Install-mP2eJIGa.js",
     "name": "Install",
     "src": "resources/js/pages/installer/Install.vue",
     "isDynamicEntry": true,
