@@ -25,6 +25,11 @@ class WebhookService implements WebhookNotifier
 
     public const DEFAULT_SIGNATURE_HEADER = 'X-Signature';
 
+    /**
+     * Il nome dell'intestazione deve essere un token HTTP valido.
+     */
+    public const SIGNATURE_HEADER_PATTERN = '/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/';
+
     public function notify(Email $email): true|string|null
     {
         $url = static::resolveUrl($email);
@@ -33,7 +38,13 @@ class WebhookService implements WebhookNotifier
             return null;
         }
 
-        return $this->post($url, static::payload($email));
+        return $this->post(
+            $url,
+            static::payload($email),
+            $email->webhook_token,
+            $email->webhook_secret,
+            $email->webhook_signature_header,
+        );
     }
 
     public function test(string $url, ?string $token = null, ?string $secret = null, ?string $header = null): true|string
@@ -54,7 +65,8 @@ class WebhookService implements WebhookNotifier
 
     /**
      * Webhook da chiamare per questa email: quello della riga ha la
-     * precedenza su quello di default delle impostazioni.
+     * precedenza su quello di default delle impostazioni. Lo stesso vale per
+     * token, segreto e intestazione della firma arrivati con la richiesta.
      */
     public static function resolveUrl(Email $email): ?string
     {

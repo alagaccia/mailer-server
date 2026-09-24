@@ -72,7 +72,7 @@ class WebhookController extends Controller
      *
      * @var array<int, string>
      */
-    protected const SIGNATURE_HEADER_RULES = ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/'];
+    protected const SIGNATURE_HEADER_RULES = ['nullable', 'string', 'max:128', 'regex:'.WebhookService::SIGNATURE_HEADER_PATTERN];
 
     /**
      * @return array<string, mixed>

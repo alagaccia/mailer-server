@@ -19,7 +19,7 @@ use Throwable;
  */
 class SendController extends Controller
 {
-    public function __invoke(Request $request, BridgeMailer $mailer, WebhookNotifier $webhook): JsonResponse
+    public function __invoke(Request $request, BridgeMailer $mailer, WebhookNotifier $notifier): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
@@ -74,14 +74,41 @@ class SendController extends Controller
             ], 400);
         }
 
+        // Credenziali con cui chiamare quel webhook: viaggiano con la
+        // richiesta cosi' il mittente non deve configurare nulla qui.
+        $webhookCredentials = [];
+
+        foreach (['webhook_token', 'webhook_secret', 'webhook_signature_header'] as $field) {
+            $value = $data[$field] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $valid = is_string($value) && ($field === 'webhook_signature_header'
+                ? preg_match(WebhookService::SIGNATURE_HEADER_PATTERN, $value) === 1 && strlen($value) <= 128
+                : strlen($value) <= 1024);
+
+            if (! $valid) {
+                return response()->json([
+                    'error' => 'Invalid '.$field,
+                    $field => is_scalar($value) ? (string) $value : '',
+                ], 400);
+            }
+
+            $webhookCredentials[$field] = $value;
+        }
+
+        $webhook = $webhookUrl === null ? [] : ['webhook' => $webhookUrl, ...$webhookCredentials];
+
         $subject = (string) $data['subject'];
         $body = (string) $data['body'];
         $attachments = is_array($data['attachments'] ?? null) ? array_values($data['attachments']) : [];
         $sync = filter_var($data['sync'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $sync
-            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer, $webhook, $uuid, $webhookUrl)
-            : $this->queue($recipients, $subject, $body, $attachments, $uuid, $webhookUrl);
+            ? $this->sendSync($recipients, $subject, $body, $attachments, $mailer, $notifier, $uuid, $webhook)
+            : $this->queue($recipients, $subject, $body, $attachments, $uuid, $webhook);
     }
 
     /**
@@ -89,8 +116,9 @@ class SendController extends Controller
      *
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
+     * @param  array<string, string>  $webhook  URL e credenziali del webhook della richiesta, vuoto = quello di default.
      */
-    protected function queue(array $recipients, string $subject, string $body, array $attachments, ?string $uuid = null, ?string $webhookUrl = null): JsonResponse
+    protected function queue(array $recipients, string $subject, string $body, array $attachments, ?string $uuid = null, array $webhook = []): JsonResponse
     {
         try {
             $ids = [];
@@ -102,7 +130,7 @@ class SendController extends Controller
                     'subject' => $subject,
                     'body' => $body,
                     'attachments' => $attachments ?: null,
-                    'webhook' => $webhookUrl,
+                    ...$webhook,
                 ]);
 
                 // Id come stringhe: parità con il contratto della vecchia app.
@@ -125,8 +153,9 @@ class SendController extends Controller
      *
      * @param  list<string>  $recipients
      * @param  array<int, array<string, string>>  $attachments
+     * @param  array<string, string>  $webhook  URL e credenziali del webhook della richiesta, vuoto = quello di default.
      */
-    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer, WebhookNotifier $webhook, ?string $uuid = null, ?string $webhookUrl = null): JsonResponse
+    protected function sendSync(array $recipients, string $subject, string $body, array $attachments, BridgeMailer $mailer, WebhookNotifier $notifier, ?string $uuid = null, array $webhook = []): JsonResponse
     {
         $sent = [];
         $failed = [];
@@ -139,7 +168,7 @@ class SendController extends Controller
                     'subject' => $subject,
                     'body' => $body,
                     'attachments' => $attachments ?: null,
-                    'webhook' => $webhookUrl,
+                    ...$webhook,
                     'status' => Email::STATUS_SENDING,
                 ]);
 
@@ -161,7 +190,7 @@ class SendController extends Controller
                     $failed[] = ['email' => $recipient, 'error' => $result];
                 }
 
-                $webhook->notify($email);
+                $notifier->notify($email);
             }
         } catch (Throwable $e) {
             return response()->json(['error' => 'Database error', 'details' => $e->getMessage()], 500);

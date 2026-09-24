@@ -227,6 +227,9 @@ curl -X POST https://esempio.it/api/send \
 | `sync` | bool | `true` = invio immediato nella richiesta; default `false` (coda, invio entro un minuto) |
 | `attachments` | array | facoltativo; contenuto base64 |
 | `webhook` | string | facoltativo; URL http/https notificato a elaborazione avvenuta, al posto di quello di default |
+| `webhook_token` | string | facoltativo, solo con `webhook`; token rimandato come `X-API-KEY` e `Authorization: Bearer` al posto di quello di default |
+| `webhook_secret` | string | facoltativo, solo con `webhook`; segreto HMAC con cui firmare la notifica al posto di quello di default |
+| `webhook_signature_header` | string | facoltativo, solo con `webhook`; intestazione che porta la firma (default `X-Signature`) |
 
 Risposte principali (contratto identico alla vecchia app):
 
@@ -235,7 +238,7 @@ Risposte principali (contratto identico alla vecchia app):
 - `500` `{"message":"All emails failed","failed":[...]}` (sync, tutti falliti)
 - `401` `{"error":"Unauthorized"}` — chiave mancante o errata
 - `403` `{"error":"Mailer disabilitato dalle impostazioni"}` — kill switch attivo
-- `400` `{"error":"Missing fields","field":"..."}` / `{"error":"Invalid email address","email":"..."}` / `{"error":"Invalid uuid","uuid":"..."}` / `{"error":"Invalid webhook","webhook":"..."}` / `{"error":"Malformed JSON",...}`
+- `400` `{"error":"Missing fields","field":"..."}` / `{"error":"Invalid email address","email":"..."}` / `{"error":"Invalid uuid","uuid":"..."}` / `{"error":"Invalid webhook","webhook":"..."}` / `{"error":"Invalid webhook_token|webhook_secret|webhook_signature_header",...}` / `{"error":"Malformed JSON",...}`
 - `405` `{"error":"Method Not Allowed. Use POST."}`
 
 ## Webhook
@@ -257,7 +260,7 @@ Ogni volta che un'email viene **elaborata** (inviata dal cron, inviata subito co
 }
 ```
 
-L'URL chiamato è quello di **default** configurato in *Impostazioni → Webhook* (vuoto = nessuna notifica), a meno che la richiesta API non abbia indicato un `webhook` proprio: in quel caso l'URL viene salvato sulla riga dell'email (colonna `webhook`) e ha la precedenza, anche sui re-invii.
+L'URL chiamato è quello di **default** configurato in *Impostazioni → Webhook* (vuoto = nessuna notifica), a meno che la richiesta API non abbia indicato un `webhook` proprio: in quel caso l'URL viene salvato sulla riga dell'email (colonna `webhook`) e ha la precedenza, anche sui re-invii. Lo stesso vale per `webhook_token`, `webhook_secret` e `webhook_signature_header`: se arrivano con la richiesta vengono salvati sulla riga (token e segreto cifrati con `APP_KEY`) e usati al posto di quelli di default. È così che il pacchetto [alagaccia/mailer-transport](https://github.com/alagaccia/mailer-transport) annuncia il proprio webhook: l'applicazione mittente non ha nulla da configurare su questo pannello.
 
 Timeout di 10 secondi, risposta attesa `2xx`, nessun retry: un webhook lento o irraggiungibile non blocca né altera l'invio dell'email, l'errore finisce solo nel log.
 
@@ -278,5 +281,5 @@ La registrazione pubblica è disabilitata: gli utenti vengono creati dall'instal
 - **Chiavi API** in tabella `api_keys` (`name` univoco, `key`, timestamps): anche i segreti sono cifrati con `APP_KEY` — servono in chiaro nel pannello, quindi la cifratura è reversibile e il confronto in fase di autenticazione avviene riga per riga. Ruotare `APP_KEY` invalida sia la password SMTP sia le chiavi: vanno reinserita l'una e rigenerate le altre.
 - **Coda**: tabella `emails` (`pending → sending → sent|failed`), claim atomico con lock, batch da 50, sweep automatico delle righe `sending` bloccate da più di 10 minuti. Nessun retry automatico: le email fallite si re-inviano dalla dashboard.
 - **Kill switch** (`mailer_enabled`): blocca sia l'API sia il worker della coda.
-- **Webhook** (`webhook_url` nelle impostazioni, colonna `emails.webhook` per l'override della singola email): la chiamata è sincrona rispetto all'invio ma non può farlo fallire — `App\Services\WebhookService` cattura ogni errore e lo registra nel log.
+- **Webhook** (`webhook_url`, `webhook_token`, `webhook_secret`, `webhook_signature_header` nelle impostazioni; colonne `emails.webhook*` per l'override della singola email): la chiamata è sincrona rispetto all'invio ma non può farlo fallire — `App\Services\WebhookService` cattura ogni errore e lo registra nel log.
 - Test: `php artisan test` · Lint: `vendor/bin/pint` · Frontend: `npm run lint`, `npm run types:check`.

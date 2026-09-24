@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\Fakes\FakeBridgeMailer;
 use Tests\TestCase;
@@ -192,6 +193,89 @@ class WebhookNotificationTest extends TestCase
         ], ['X-API-KEY' => 'test-api-key'])->assertStatus(201);
 
         Http::assertNothingSent();
+    }
+
+    public function test_credentials_sent_with_the_request_are_used_for_its_webhook(): void
+    {
+        Setting::set('webhook_url', 'https://default.example.com/hook');
+        Setting::set('webhook_token', 'token-di-default');
+        Setting::set('webhook_secret', 'segreto-di-default');
+
+        ApiKey::create(['name' => 'default', 'key' => 'test-api-key']);
+
+        $this->postJson('/api/send', [
+            'to' => 'a@b.it',
+            'subject' => 'S',
+            'body' => 'B',
+            'webhook' => 'https://specifico.example.com/hook',
+            'webhook_token' => 'token-specifico',
+            'webhook_secret' => 'segreto-specifico',
+            'webhook_signature_header' => 'X-Hub-Signature-256',
+        ], ['X-API-KEY' => 'test-api-key'])->assertStatus(201);
+
+        $this->artisan('mail:process-queue')->assertSuccessful();
+
+        Http::assertSent(function (Request $request): bool {
+            $atteso = 'sha256='.hash_hmac('sha256', $request->body(), 'segreto-specifico');
+
+            return $request->url() === 'https://specifico.example.com/hook'
+                && $request->header('X-API-KEY') === ['token-specifico']
+                && $request->header('Authorization') === ['Bearer token-specifico']
+                && $request->header('X-Hub-Signature-256') === [$atteso]
+                && $request->header('X-Signature') === [];
+        });
+    }
+
+    public function test_credentials_of_the_request_are_stored_encrypted(): void
+    {
+        ApiKey::create(['name' => 'default', 'key' => 'test-api-key']);
+
+        $this->postJson('/api/send', [
+            'to' => 'a@b.it',
+            'subject' => 'S',
+            'body' => 'B',
+            'webhook' => 'https://specifico.example.com/hook',
+            'webhook_token' => 'token-specifico',
+            'webhook_secret' => 'segreto-specifico',
+        ], ['X-API-KEY' => 'test-api-key'])->assertStatus(201);
+
+        $raw = DB::table('emails')->first();
+        $email = Email::first();
+
+        $this->assertNotSame('token-specifico', $raw->webhook_token);
+        $this->assertNotSame('segreto-specifico', $raw->webhook_secret);
+        $this->assertSame('token-specifico', $email->webhook_token);
+        $this->assertSame('segreto-specifico', $email->webhook_secret);
+        $this->assertNull($email->webhook_signature_header);
+    }
+
+    public function test_credentials_without_a_webhook_url_are_ignored(): void
+    {
+        ApiKey::create(['name' => 'default', 'key' => 'test-api-key']);
+
+        $this->postJson('/api/send', [
+            'to' => 'a@b.it',
+            'subject' => 'S',
+            'body' => 'B',
+            'webhook_secret' => 'segreto-specifico',
+        ], ['X-API-KEY' => 'test-api-key'])->assertStatus(201);
+
+        $this->assertNull(Email::first()->webhook_secret);
+    }
+
+    public function test_an_invalid_signature_header_name_is_rejected(): void
+    {
+        ApiKey::create(['name' => 'default', 'key' => 'test-api-key']);
+
+        $this->postJson('/api/send', [
+            'to' => 'a@b.it',
+            'subject' => 'S',
+            'body' => 'B',
+            'webhook' => 'https://specifico.example.com/hook',
+            'webhook_signature_header' => 'X Signature',
+        ], ['X-API-KEY' => 'test-api-key'])
+            ->assertStatus(400)
+            ->assertJson(['error' => 'Invalid webhook_signature_header']);
     }
 
     public function test_unreachable_webhook_does_not_affect_the_email(): void

@@ -17,6 +17,9 @@ use Illuminate\Support\Str;
  * @property string $body
  * @property array<int, array{filename?: string, content?: string, mime?: string}>|null $attachments
  * @property string|null $webhook
+ * @property string|null $webhook_token
+ * @property string|null $webhook_secret
+ * @property string|null $webhook_signature_header
  * @property string $status
  * @property int $attempts
  * @property string|null $last_error
@@ -24,7 +27,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['uuid', 'recipient', 'subject', 'body', 'attachments', 'webhook', 'status', 'attempts', 'last_error', 'sent_at'])]
+#[Fillable(['uuid', 'recipient', 'subject', 'body', 'attachments', 'webhook', 'webhook_token', 'webhook_secret', 'webhook_signature_header', 'status', 'attempts', 'last_error', 'sent_at'])]
 class Email extends Model
 {
     public const STATUS_PENDING = 'pending';
@@ -68,6 +71,8 @@ class Email extends Model
     {
         return [
             'attachments' => 'array',
+            'webhook_token' => 'encrypted',
+            'webhook_secret' => 'encrypted',
             'sent_at' => 'datetime',
         ];
     }

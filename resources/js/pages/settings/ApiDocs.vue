@@ -54,6 +54,27 @@ const params: Param[] = [
             "URL http/https chiamato in POST quando l'email viene elaborata, per notificare l'esito dell'invio. Sostituisce il webhook di default configurato in Impostazioni → Webhook. Con più destinatari viene assegnato a tutte le email create dalla richiesta, che riceve quindi una notifica per ciascuna.",
     },
     {
+        name: 'webhook_token',
+        type: 'string',
+        required: false,
+        description:
+            'Solo insieme a webhook: token rimandato nelle intestazioni X-API-KEY e Authorization: Bearer della notifica, al posto di quello di default.',
+    },
+    {
+        name: 'webhook_secret',
+        type: 'string',
+        required: false,
+        description:
+            'Solo insieme a webhook: segreto con cui firmare la notifica (HMAC SHA-256 del corpo), al posto di quello di default. Salvato cifrato.',
+    },
+    {
+        name: 'webhook_signature_header',
+        type: 'string',
+        required: false,
+        description:
+            'Solo insieme a webhook: nome dell\'intestazione che porta la firma (default X-Signature).',
+    },
+    {
         name: 'sync',
         type: 'boolean',
         required: false,
@@ -75,6 +96,8 @@ const requestExample = `{
     }
   ],
   "webhook": "https://tuo-software.it/hooks/mail-bridge",
+  "webhook_secret": "chiave-hmac-condivisa",
+  "webhook_signature_header": "X-Signature",
   "sync": false
 }`;
 
