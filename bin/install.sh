@@ -4,7 +4,7 @@
 #
 # Pensato per l'hosting condiviso (cPanel, Plesk...) dove il comando `php`
 # non esiste o punta a una versione vecchia: cerca da solo un binario PHP
-# >= 8.3 (es. /usr/local/bin/ea-php85), scarica composer.phar se serve e
+# >= 8.4.1 (es. /usr/local/bin/ea-php85), scarica composer.phar se serve e
 # lancia `composer install --no-dev`.
 #
 # Uso:
@@ -19,8 +19,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIN_PHP_ID=80300
-MIN_PHP_LABEL="8.3"
+MIN_PHP_ID=80401
+MIN_PHP_LABEL="8.4.1"
 PHP_BIN="${PHP_BIN:-}"
 COMPOSER_BIN="${COMPOSER_BIN:-}"
 DEV=0

@@ -4,7 +4,7 @@ Riscrittura in **Laravel + Inertia + Vue 3** del progetto "mailer": un ponte SMT
 
 ## Requisiti
 
-- PHP 8.3+ (estensioni: pdo_mysql, mbstring, openssl, fileinfo)
+- PHP **8.4.1 o superiore** (consigliato 8.5; estensioni: pdo_mysql, mbstring, openssl, fileinfo). `composer.json` dichiara `^8.3`, ma le versioni bloccate in `composer.lock` di Symfony richiedono 8.4.1: con PHP 8.3 sia `composer install` sia l'app falliscono.
 - MySQL 8+
 - Un cron attivo sul server (la coda email viene processata solo dallo scheduler)
 - Composer e Node 20+ **solo** per lo sviluppo o per creare il pacchetto di release: gli asset compilati (`public/build`) sono versionati nel repository, quindi in produzione Node non serve mai.
@@ -23,7 +23,7 @@ bin/install.sh
 
 `bin/install.sh` installa le dipendenze PHP senza che tu debba sapere come si chiama PHP su quel server:
 
-1. cerca un binario PHP ≥ 8.3 tra i percorsi tipici degli hosting (`ea-php85` di cPanel, `/opt/plesk/php/8.x/bin/php`, `php8.5`, `php`…);
+1. cerca un binario PHP ≥ 8.4.1 tra i percorsi tipici degli hosting (`ea-php85` di cPanel, `/opt/plesk/php/8.x/bin/php`, `php8.5`, `php`…);
 2. usa il `composer` di sistema se esiste, altrimenti scarica `composer.phar` nella radice del progetto (firma SHA-384 verificata; il file è in `.gitignore`);
 3. esegue `composer install --no-dev --optimize-autoloader`;
 4. stampa la riga di cron già pronta con il percorso PHP corretto.
@@ -42,13 +42,27 @@ Poi:
 2. apri il sito nel browser: verrai reindirizzato a **`/install`** (vedi [Il wizard](#il-wizard));
 3. aggiungi il [cron](#cron-obbligatorio).
 
+### A2. Hosting cPanel con *Git Version Control* (senza SSH)
+
+Se cPanel ti permette di clonare il repository dal pannello ma non hai una shell, il file [`.cpanel.yml`](.cpanel.yml) nella radice del progetto fa il lavoro di `bin/install.sh` al posto tuo:
+
+1. In *Git Version Control* clona il repository direttamente nella cartella finale (es. `/home/utente/subdomains/mailer`).
+2. In *MultiPHP Manager* imposta il dominio su PHP 8.4 o 8.5.
+3. Imposta il document root del dominio o sottodominio su `.../mailer/public`.
+4. In *Git Version Control → Manage → Pull or Deploy* premi **Update from Remote** e poi **Deploy HEAD Commit**: cPanel esegue `bin/install.sh` nella cartella del clone, che installa `vendor/`.
+5. Apri il sito: parte il wizard. Poi crea il cron da *Cron Jobs* con il percorso PHP completo (es. `/usr/local/bin/ea-php85`, vedi sotto).
+
+A ogni aggiornamento basta ripetere il punto 4. Il deploy richiede che il clone non abbia modifiche locali: le cartelle create dall'installazione (`vendor/`, `composer.phar`, `.env`, `storage/`) sono tutte ignorate da git, quindi non danno problemi.
+
+> Un 500 subito dopo il clone, con nel log `Failed opening required '.../vendor/autoload.php'`, significa solo che questo passaggio non è ancora stato fatto.
+
 ### B. Hosting condiviso con solo FTP (senza SSH)
 
 Senza shell non si può lanciare Composer, quindi si usa il **pacchetto di release**: uno zip che contiene già `vendor/` e `public/build`. Lo produce chi sviluppa con `bin/build-release.sh` (vedi sotto) e si trova tra le release del repository.
 
 1. **Crea una cartella fuori dalla root pubblica**, es. `/home/utente/mailer`, e caricaci lo zip.
 2. **Estrai lo zip dal File Manager del pannello** (cPanel, Plesk…). Evita di caricare i file scompattati via FTP: `vendor/` contiene migliaia di file e il trasferimento è lento e fragile.
-3. **Imposta la versione PHP** dal pannello (es. *MultiPHP Manager* su cPanel) ad almeno 8.3.
+3. **Imposta la versione PHP** dal pannello (es. *MultiPHP Manager* su cPanel) ad almeno 8.4 (meglio 8.5).
 4. **Punta il document root** del dominio o sottodominio su `/home/utente/mailer/public`. Su cPanel si fa creando un sottodominio (o un dominio aggiuntivo) con *Document Root* personalizzata. Se il pannello non lo consente, chiedi all'hosting di farlo: il progetto non va mai esposto dalla sua radice.
 5. **Apri il sito nel browser**: verrai reindirizzato a **`/install`** (vedi [Il wizard](#il-wizard)).
 6. **Crea il cron dal pannello**, usando il percorso PHP dell'hosting (su cPanel di solito `/usr/local/bin/ea-php85`, `ea-php84`, …):
