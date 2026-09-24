@@ -4,28 +4,72 @@ Riscrittura in **Laravel + Inertia + Vue 3** del progetto "mailer": un ponte SMT
 
 ## Requisiti
 
-- PHP 8.5+ (estensioni: pdo_mysql, mbstring, openssl)
+- PHP 8.3+ (estensioni: pdo_mysql, mbstring, openssl, fileinfo)
 - MySQL 8+
-- Node 20+ (solo per la build degli asset)
-- Un cron attivo sul server
+- Un cron attivo sul server (la coda email viene processata solo dallo scheduler)
+- Composer e Node 20+ **solo** per lo sviluppo o per creare il pacchetto di release: gli asset compilati (`public/build`) sono versionati nel repository, quindi in produzione Node non serve mai.
 
 ## Installazione
 
+Il progetto si installa in due modi, a seconda di cosa offre il server. In entrambi i casi la configurazione (`.env`, `APP_KEY`, database, SMTP, primo admin) viene fatta dal **wizard web** al primo avvio: non è richiesto alcun comando artisan.
+
+### A. Server con accesso SSH (dedicato, VPS, hosting condiviso con shell)
+
 ```bash
-composer install --no-dev
-npm ci && npm run build
-cp .env.example .env
-php artisan key:generate
+git clone <url-del-repository> mailer
+cd mailer
+bin/install.sh
 ```
 
-Configura il virtual host con **document root su `public/`**, poi apri l'applicazione nel browser: verrai reindirizzato a **`/install`**, il wizard guidato che richiede:
+`bin/install.sh` installa le dipendenze PHP senza che tu debba sapere come si chiama PHP su quel server:
+
+1. cerca un binario PHP ≥ 8.3 tra i percorsi tipici degli hosting (`ea-php85` di cPanel, `/opt/plesk/php/8.x/bin/php`, `php8.5`, `php`…);
+2. usa il `composer` di sistema se esiste, altrimenti scarica `composer.phar` nella radice del progetto (firma SHA-384 verificata; il file è in `.gitignore`);
+3. esegue `composer install --no-dev --optimize-autoloader`;
+4. stampa la riga di cron già pronta con il percorso PHP corretto.
+
+| Opzione | Effetto |
+|---|---|
+| `--php /percorso/php` | Forza il binario PHP (equivale alla variabile `PHP_BIN`) |
+| `--composer /percorso/composer` | Forza il binario Composer (equivale a `COMPOSER_BIN`) |
+| `--dev` | Installa anche le dipendenze di sviluppo |
+
+Su un server dedicato puoi ovviamente fare a mano `composer install --no-dev --optimize-autoloader`: il risultato è lo stesso.
+
+Poi:
+
+1. imposta il **document root** del sito su `public/`;
+2. apri il sito nel browser: verrai reindirizzato a **`/install`** (vedi [Il wizard](#il-wizard));
+3. aggiungi il [cron](#cron-obbligatorio).
+
+### B. Hosting condiviso con solo FTP (senza SSH)
+
+Senza shell non si può lanciare Composer, quindi si usa il **pacchetto di release**: uno zip che contiene già `vendor/` e `public/build`. Lo produce chi sviluppa con `bin/build-release.sh` (vedi sotto) e si trova tra le release del repository.
+
+1. **Crea una cartella fuori dalla root pubblica**, es. `/home/utente/mailer`, e caricaci lo zip.
+2. **Estrai lo zip dal File Manager del pannello** (cPanel, Plesk…). Evita di caricare i file scompattati via FTP: `vendor/` contiene migliaia di file e il trasferimento è lento e fragile.
+3. **Imposta la versione PHP** dal pannello (es. *MultiPHP Manager* su cPanel) ad almeno 8.3.
+4. **Punta il document root** del dominio o sottodominio su `/home/utente/mailer/public`. Su cPanel si fa creando un sottodominio (o un dominio aggiuntivo) con *Document Root* personalizzata. Se il pannello non lo consente, chiedi all'hosting di farlo: il progetto non va mai esposto dalla sua radice.
+5. **Apri il sito nel browser**: verrai reindirizzato a **`/install`** (vedi [Il wizard](#il-wizard)).
+6. **Crea il cron dal pannello**, usando il percorso PHP dell'hosting (su cPanel di solito `/usr/local/bin/ea-php85`, `ea-php84`, …):
+
+   ```cron
+   * * * * * cd /home/utente/mailer && /usr/local/bin/ea-php85 artisan schedule:run >> /dev/null 2>&1
+   ```
+
+> Limite noto: senza SSH non si possono lanciare le migrazioni. Gli aggiornamenti che modificano lo schema del database richiedono un accesso shell (anche temporaneo) per `php artisan migrate --force`.
+
+### Il wizard
+
+Al primo avvio, prima che Laravel legga l'ambiente, l'applicazione crea da sola il `.env` copiando `.env.example` e genera la `APP_KEY` (`App\Support\EnvBootstrap`, invocato da `bootstrap/app.php`). Se la cartella del progetto non è scrivibile dal web server il wizard mostra un avviso: in quel caso copia `.env.example` in `.env` a mano e rendilo scrivibile.
+
+Il wizard richiede:
 
 1. **Amministratore** — il primo utente (avrà `is_admin = true`)
 2. **Database** — credenziali MySQL (connessione verificata prima di procedere)
 3. **SMTP** — parametri di invio (con test di connessione facoltativo)
-4. **Composer** — passo facoltativo: se Composer non è disponibile sul server, il wizard può scaricare `composer.phar` nella radice del progetto (download da `getcomposer.org` con verifica SHA-256, `chmod 0755` e riga in `.gitignore`, quindi non viene versionato). Da lì si usa con `php composer.phar <comando>`.
 
-Al termine viene generata automaticamente la prima **chiave API** (di nome `default`), mostrata a schermo (resta comunque visibile agli admin in *Impostazioni → Chiavi API*, dove se ne possono creare altre). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
+Al termine esegue le migrazioni, scrive le credenziali del database nel `.env` e genera la prima **chiave API** (di nome `default`), mostrata a schermo (resta comunque visibile agli admin in *Impostazioni → Chiavi API*, dove se ne possono creare altre). L'installer si disattiva da solo dopo la prima installazione (flag `storage/app/installed.json`).
 
 > Non eseguire `php artisan config:cache` prima dell'installazione: la configurazione cachata ignorerebbe il `.env` scritto dal wizard.
 
@@ -37,101 +81,60 @@ Per riportare l'app allo stato "non installato" e rivedere il wizard da capo:
 php artisan app:uninstall
 ```
 
-Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; usa `--force` per saltarla). Da lì apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 4 step. Il wizard esegue `migrate:fresh`, quindi il database viene ricreato da zero automaticamente: non serve droppare le tabelle a mano.
+Il comando cancella il flag `storage/app/installed.json` (chiedendo conferma; usa `--force` per saltarla). Da lì apri l'URL dell'app nel browser: verrai reindirizzato a `/install` e potrai ripetere i 3 step. Il wizard esegue `migrate:fresh`, quindi il database viene ricreato da zero automaticamente: non serve droppare le tabelle a mano.
 
 > ⚠️ Non farlo mai in produzione: cancella tutti i dati dell'applicazione (utenti, email in coda, impostazioni SMTP).
 
-### Hosting condiviso (senza build su server)
+### Aggiornare un'installazione
 
-Se il server di produzione non permette di eseguire `npm ci && npm run build` (hosting condiviso, niente accesso a Node), compila gli asset in locale e caricali via `rsync`: `public/build` resta ignorato da git (vedi `.gitignore`) e viaggia solo tramite trasferimento diretto, senza toccare il repository.
-
-#### Comando `deploy:assets` (consigliato)
-
-Il progetto include un comando artisan che incapsula la sincronizzazione, con i parametri del server presi dal `.env`:
-
-```bash
-npm run build
-php artisan deploy:assets
-```
-
-oppure, in un colpo solo (build + upload):
-
-```bash
-php artisan deploy:assets --build
-```
-
-| Opzione | Effetto |
-|---|---|
-| `--build` | Esegue `npm run build` prima di sincronizzare (si ferma se la build fallisce) |
-| `--dry-run` | Mostra cosa verrebbe trasferito/cancellato senza scrivere nulla sul server |
-| `--force` | Salta la richiesta di conferma (utile in script non interattivi) |
-
-Il comando stampa sempre la riga `rsync` che sta per eseguire e chiede conferma prima di procedere (`--dry-run` e `--force` la saltano).
-
-Variabili di configurazione (in `.env`, vedi `.env.example`; mappate in `config/deploy.php`):
-
-| Variabile | Descrizione | Default |
-|---|---|---|
-| `DEPLOY_SSH_USER` | Utente SSH del server | — (obbligatoria) |
-| `DEPLOY_SSH_HOST` | Host del server | — (obbligatoria) |
-| `DEPLOY_SSH_PORT` | Porta SSH (se diversa da 22 viene passata come `-e "ssh -p N"`) | `22` |
-| `DEPLOY_LOCAL_PATH` | Cartella locale da inviare (relativa alla radice del progetto o assoluta) | `public/build` |
-| `DEPLOY_REMOTE_PATH` | Cartella remota di destinazione (percorso assoluto) | — (obbligatoria) |
-| `DEPLOY_RSYNC_OPTIONS` | Opzioni passate a rsync | `-avz --delete` |
-
-Esempio:
-
-```dotenv
-DEPLOY_SSH_USER=utente
-DEPLOY_SSH_HOST=server.esempio.it
-DEPLOY_SSH_PORT=22
-DEPLOY_LOCAL_PATH=public/build
-DEPLOY_REMOTE_PATH=/home/utente/subdomains/mailer/public/build
-DEPLOY_RSYNC_OPTIONS="-avz --delete"
-```
-
-che genera il comando:
-
-```bash
-rsync -avz --delete public/build/ utente@server.esempio.it:/home/utente/subdomains/mailer/public/build
-```
-
-> Se hai già fatto `php artisan config:cache` in locale, ricordati di rilanciarlo (o `config:clear`) dopo aver cambiato queste variabili.
-
-#### rsync a mano
-
-Lo stesso risultato, senza passare dal comando:
-
-```bash
-npm run build
-rsync -avz --delete public/build/ utente@server:/percorso/mailer-server/public/build/
-```
-
-`rsync` trasporta i dati via SSH, quindi usa automaticamente le chiavi già installate (nessuna password richiesta). `--delete` rimuove sul server i file che non esistono più nella build locale — utile perché Vite genera nomi con hash diversi ad ogni build e altrimenti si accumulerebbero versioni vecchie.
-
-#### scp
-
-In alternativa, con lo stesso accesso SSH puoi usare `scp`, che copia l'intera cartella in un colpo solo:
-
-```bash
-npm run build
-ssh utente@server 'rm -rf /percorso/mailer-server/public/build'
-scp -r public/build utente@server:/percorso/mailer-server/public/
-```
-
-`scp` non fa sync incrementale: va bene per deploy occasionali, ma trasferisce sempre tutti i file (anche quelli invariati) ed è per questo che conviene cancellare prima la cartella remota, altrimenti si accumulano gli asset con hash vecchi. `rsync` resta la scelta più efficiente per deploy frequenti.
-
-Ripeti questi comandi a ogni deploy che tocca frontend/asset. Il resto del codice (PHP, migrazioni, ecc.) continua a essere aggiornato come al solito (es. `git pull`).
+- **Con SSH**: `git pull`, poi `bin/install.sh` (applica eventuali cambi di `composer.lock`) e `php artisan migrate --force`. Gli asset compilati arrivano con il `pull`.
+- **Solo FTP**: carica il nuovo zip ed estrailo sopra l'installazione esistente. Il pacchetto non contiene `.env` né `storage/`, quindi configurazione e dati restano intatti. Vale il limite sulle migrazioni descritto sopra.
 
 ### Cron (obbligatorio)
 
 La coda email viene processata **solo** dallo scheduler, ogni minuto:
 
 ```cron
-* * * * * cd /percorso/mailer-server && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /percorso/mailer && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-In locale: `php artisan schedule:work`.
+Sugli hosting condivisi sostituisci `php` con il binario completo (es. `/usr/local/bin/ea-php85`): `bin/install.sh` stampa la riga già corretta. In locale: `php artisan schedule:work`.
+
+## Sviluppo
+
+```bash
+composer install
+npm install
+npm run dev          # Vite con hot reload (oppure: composer run dev)
+```
+
+Gli asset compilati in `public/build` **sono versionati**: prima di ogni commit che tocca il frontend lancia `npm run build` e includi la cartella nel commit, così chi fa il deploy con `git pull` o con lo zip di release non ha bisogno di Node. La cartella è marcata come generata in `.gitattributes`, quindi non compare nei diff.
+
+### Creare il pacchetto di release (per l'installazione via FTP)
+
+```bash
+bin/build-release.sh
+# -> dist/mail-bridge-<versione>.zip
+```
+
+Lo script parte dai **soli file committati** (`git archive HEAD`), esegue `composer install --no-dev --optimize-autoloader`, ricompila gli asset con `npm ci && npm run build`, rimuove `node_modules/`, `tests/` e l'eventuale `.env`, e produce lo zip in `dist/` (cartella ignorata da git). Il nome della versione viene da `git describe --tags`: crea un tag prima di rilasciare (`git tag v1.2.0`). Richiede `git`, `php`, `composer`, `zip` e, salvo `--no-build`, `npm`.
+
+| Opzione | Effetto |
+|---|---|
+| `--no-build` | Riusa il `public/build` committato invece di ricompilare |
+| `--output <cartella>` | Cartella di destinazione dello zip (default `dist/`) |
+
+### Aggiornare solo gli asset via rsync (`deploy:assets`)
+
+Se vuoi provare una build sul server senza passare da un commit, il comando `deploy:assets` sincronizza `public/build` via rsync con i parametri presi dal `.env`:
+
+```bash
+php artisan deploy:assets --build     # npm run build + rsync
+php artisan deploy:assets --dry-run   # mostra cosa cambierebbe
+php artisan deploy:assets --force     # salta la conferma
+```
+
+Variabili (in `.env`, vedi `.env.example`; mappate in `config/deploy.php`): `DEPLOY_SSH_USER`, `DEPLOY_SSH_HOST`, `DEPLOY_SSH_PORT` (default 22), `DEPLOY_LOCAL_PATH` (default `public/build`), `DEPLOY_REMOTE_PATH` (assoluto, obbligatorio), `DEPLOY_RSYNC_OPTIONS` (default `-avz --delete`). Il comando stampa sempre la riga `rsync` che sta per eseguire e chiede conferma.
 
 ## API
 

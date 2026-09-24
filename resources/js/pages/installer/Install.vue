@@ -197,8 +197,11 @@ const errorClass = 'mt-2 text-xs text-red-400';
                 v-if="!envWritable"
                 class="mb-6 rounded-xl border border-red-500 bg-red-900/50 p-4 text-center text-sm text-red-200"
             >
-                Il file <code class="font-mono">.env</code> non è scrivibile:
-                correggi i permessi prima di procedere.
+                Il file <code class="font-mono">.env</code> non esiste o non è
+                scrivibile: verifica che la cartella del progetto e il file
+                siano scrivibili dal web server (in alternativa copia
+                <code class="font-mono">.env.example</code> in
+                <code class="font-mono">.env</code>) e ricarica la pagina.
             </div>
 
             <!-- Schermata finale -->

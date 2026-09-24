@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureInstalled;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Support\EnvBootstrap;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -13,6 +14,13 @@ use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+
+// Primo avvio senza terminale (hosting condiviso): crea il .env e la APP_KEY
+// prima che Laravel legga l'ambiente. Nei test la configurazione arriva da
+// phpunit.xml e non si deve toccare il .env reale.
+if (getenv('APP_ENV') !== 'testing') {
+    EnvBootstrap::ensure(dirname(__DIR__));
+}
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

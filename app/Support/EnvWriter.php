@@ -52,8 +52,9 @@ class EnvWriter
             return '';
         }
 
-        // Valori con soli caratteri "sicuri" non richiedono virgolette.
-        if (preg_match('/^[A-Za-z0-9_.\/:@-]+$/', $value)) {
+        // Valori con soli caratteri "sicuri" non richiedono virgolette
+        // (inclusi `+`, `/` e `=` delle chiavi base64, come key:generate).
+        if (preg_match('/^[A-Za-z0-9_.\/:@+=-]+$/', $value)) {
             return $value;
         }
 

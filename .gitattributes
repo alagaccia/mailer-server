@@ -7,5 +7,7 @@
 *.php diff=php
 
 CHANGELOG.md export-ignore
-README.md export-ignore
 .github/workflows/browser-tests.yml export-ignore
+
+# Asset compilati da Vite: versionati per il deploy senza Node, ma esclusi dai diff
+public/build/** -diff linguist-generated=true
